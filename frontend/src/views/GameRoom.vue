@@ -1,5 +1,38 @@
 <template>
   <div class="game-room">
+    <!-- 玩家信息区域 -->
+    <div class="player-info">
+      <div class="player-avatar">
+        <img 
+          :src="playerCharacter ? getAvatarUrl(playerCharacter.name) : getAvatarUrl('?')" 
+          alt="Player Avatar"
+        >
+      </div>
+      <div class="player-stats">
+        <div class="stat">
+          <span class="stat-label">理智值:</span>
+          <div class="stat-bar">
+            <div 
+              class="stat-fill" 
+              :style="{ width: `${playerCharacter?.current_sanity || 0}%` }"
+            ></div>
+            <span class="stat-value">{{ playerCharacter?.current_sanity || 0 }}</span>
+          </div>
+        </div>
+        <div class="stat">
+          <span class="stat-label">异化值:</span>
+          <div class="stat-bar">
+            <div 
+              class="stat-fill red" 
+              :style="{ width: `${playerCharacter?.current_alienation || 0}%` }"
+            ></div>
+            <span class="stat-value">{{ playerCharacter?.current_alienation || 0 }}</span>
+          </div>
+        </div>
+        <div class="player-name">{{ playerCharacter?.name || '未知职业' }}</div>
+      </div>
+    </div>
+
     <!-- 左侧NPC列表 -->
     <div class="npc-list">
       <h2>NPC列表</h2>
@@ -11,7 +44,11 @@
           :class="{ active: selectedNpc?.character_id === npc.character_id }"
           @click="selectNpc(npc)"
         >
-          <img :src="npc.avatar_url || '/default-avatar.png'" :alt="npc.name" class="npc-avatar">
+          <img 
+            :src="getAvatarUrl(npc.name)" 
+            :alt="npc.name" 
+            class="npc-avatar"
+          >
           <div class="npc-info">
             <h3>{{ npc.name }}</h3>
             <p>{{ npc.position }}</p>
@@ -57,6 +94,7 @@
 import { ref, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
+import { generateTextAvatar } from '../utils/avatar';
 
 const route = useRoute();
 const router = useRouter();
@@ -65,6 +103,7 @@ const selectedNpc = ref(null);
 const messages = ref([]);
 const newMessage = ref('');
 const messagesContainer = ref(null);
+const playerCharacter = ref(null);
 
 // 获取模组NPC列表
 const fetchNpcs = async () => {
@@ -129,10 +168,27 @@ watch(messages, () => {
   scrollToBottom();
 }, { deep: true });
 
+// 获取玩家角色信息
+const fetchPlayerCharacter = async () => {
+  try {
+    const characterId = route.params.characterId;
+    const response = await api.get(`/player-characters/${characterId}`);
+    playerCharacter.value = response.data;
+  } catch (error) {
+    console.error('Error fetching player character:', error);
+  }
+};
+
+// 生成头像URL的计算属性
+const getAvatarUrl = (name) => {
+  return generateTextAvatar(name);
+};
+
 // 组件挂载时获取NPC列表
 onMounted(() => {
   console.log('GameRoom mounted'); // 调试日志
   fetchNpcs();
+  fetchPlayerCharacter();
 });
 </script>
 
@@ -183,11 +239,12 @@ onMounted(() => {
 }
 
 .npc-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   margin-right: 12px;
   object-fit: cover;
+  background-color: #f0f0f0;
 }
 
 .npc-info h3 {
@@ -276,5 +333,77 @@ onMounted(() => {
 .chat-input button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
+}
+
+.player-info {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  z-index: 1000;
+}
+
+.player-avatar img {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: #f0f0f0;
+}
+
+.player-stats {
+  min-width: 150px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.stat-label {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.stat-bar {
+  width: 100%;
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-fill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.stat-fill.red {
+  background: #ff4444;
+}
+
+.stat-value {
+  position: absolute;
+  right: -25px;
+  top: -4px;
+  font-size: 0.8em;
+  color: #666;
+}
+
+.player-name {
+  font-weight: bold;
+  color: #333;
+  margin-top: 8px;
+  text-align: center;
 }
 </style> 

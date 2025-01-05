@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional
@@ -8,6 +8,8 @@ from database import get_db_connection, SessionLocal, engine
 import schemas
 import models
 import json
+import os
+import shutil
 
 app = FastAPI(
     title="TRPG API",
@@ -568,7 +570,6 @@ async def create_game_character(character: SimpleCharacterCreate):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # 简化的 SQL 语句，使用默认值
         cursor.execute("""
             INSERT INTO player_characters (
                 player_id,
@@ -607,7 +608,6 @@ async def create_game_character(character: SimpleCharacterCreate):
     except Exception as e:
         conn.rollback()
         print(f"Error creating character: {e}")
-        # 添加更详细的错误信息
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to create character: {str(e)}"
@@ -615,3 +615,80 @@ async def create_game_character(character: SimpleCharacterCreate):
     finally:
         cursor.close()
         conn.close() 
+
+@app.get("/player-characters/{character_id}")
+async def get_player_character(character_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # 获取角色信息和职业名称
+        cursor.execute("""
+            SELECT pc.player_character_id, 
+                   pc.module_id,
+                   pc.profession_id,
+                   pc.creation_time,
+                   pc.current_sanity,
+                   pc.current_alienation,
+                   pc.inventory,
+                   pc.completed_phases,
+                   pc.current_status,
+                   p.name as profession_name
+            FROM player_characters pc
+            JOIN professions p ON pc.profession_id = p.profession_id
+            WHERE pc.player_character_id = %s
+        """, (character_id,))
+        
+        character = cursor.fetchone()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+            
+        return {
+            "player_character_id": character[0],
+            "module_id": character[1],
+            "profession_id": character[2],
+            "creation_time": character[3].isoformat(),
+            "current_sanity": character[4] or 60,  # 默认值为60
+            "current_alienation": character[5] or 0,  # 默认值为0
+            "inventory": character[6] if character[6] else {},
+            "completed_phases": character[7] if character[7] else {},
+            "current_status": character[8],
+            "name": character[9]  # 使用职业名称作为角色名称
+        }
+    finally:
+        cursor.close()
+        conn.close() 
+
+@app.post("/upload-avatar/{character_id}")
+async def upload_avatar(character_id: int, file: UploadFile = File(...)):
+    try:
+        # 创建保存目录（如果不存在）
+        save_dir = "frontend/public/avatars/players"
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 生成文件名
+        file_extension = os.path.splitext(file.filename)[1]
+        new_filename = f"character_{character_id}{file_extension}"
+        file_path = os.path.join(save_dir, new_filename)
+        
+        # 保存文件
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 更新数据库中的头像URL
+        avatar_url = f"/avatars/players/{new_filename}"
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE player_characters 
+                SET avatar_url = %s 
+                WHERE player_character_id = %s
+            """, (avatar_url, character_id))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+            
+        return {"avatar_url": avatar_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
