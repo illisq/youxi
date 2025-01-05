@@ -16,3 +16,8 @@ class User(UserBase):
 
     class Config:
         from_attributes = True 
+
+class EndingSchema(BaseModel):
+    ending_id: int
+    ending_name: str | None = None
+    ending_description: str | None = None 

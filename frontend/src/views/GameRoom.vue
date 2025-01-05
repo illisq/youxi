@@ -9,6 +9,9 @@
         >
       </div>
       <div class="player-stats">
+        <div class="day-counter">
+          第 {{ playerCharacter?.day || 1 }} 天
+        </div>
         <div class="stat">
           <span class="stat-label">理智值:</span>
           <div class="stat-bar">
@@ -87,6 +90,33 @@
         </button>
       </div>
     </div>
+
+    <!-- 添加状态变化提示框 -->
+    <div v-if="showStatusChange" class="status-change-popup">
+      <div class="status-change-content">
+        <h3>状态变化</h3>
+        <div v-if="statusChanges.sanity" :class="{'status-decrease': statusChanges.sanity < 0, 'status-increase': statusChanges.sanity > 0}">
+          理智: {{ statusChanges.sanity > 0 ? '+' : ''}}{{ statusChanges.sanity }}
+        </div>
+        <div v-if="statusChanges.alienation" :class="{'status-decrease': statusChanges.alienation > 0, 'status-increase': statusChanges.alienation < 0}">
+          异化: {{ statusChanges.alienation > 0 ? '+' : ''}}{{ statusChanges.alienation }}
+        </div>
+        <div v-if="statusChanges.chen_influence" :class="{'status-decrease': statusChanges.chen_influence < 0, 'status-increase': statusChanges.chen_influence > 0}">
+          陈总影响: {{ statusChanges.chen_influence > 0 ? '+' : ''}}{{ statusChanges.chen_influence }}
+        </div>
+        <div v-if="statusChanges.liu_influence" :class="{'status-decrease': statusChanges.liu_influence < 0, 'status-increase': statusChanges.liu_influence > 0}">
+          刘总监影响: {{ statusChanges.liu_influence > 0 ? '+' : ''}}{{ statusChanges.liu_influence }}
+        </div>
+        <div v-if="statusChanges.discovered_secrets && statusChanges.discovered_secrets.length > 0">
+          <div class="discovered-secrets">
+            发现的秘密:
+            <div v-for="secret in statusChanges.discovered_secrets" :key="secret">
+              {{ getSecretName(secret) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -116,6 +146,7 @@ interface PlayerCharacter {
   name: string;
   current_sanity: number;
   current_alienation: number;
+  day: number;
 }
 
 const npcs = ref<NPC[]>([]);
@@ -124,6 +155,16 @@ const messages = ref<Message[]>([]);
 const newMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const playerCharacter = ref<PlayerCharacter | null>(null);
+const allNpcsInteractedToday = ref<Set<number>>(new Set());
+const showStatusChange = ref(false);
+const statusChanges = ref({});
+const playerStatus = ref({
+  sanity: 100,
+  alienation: 0,
+  chen_influence: 0,
+  liu_influence: 0,
+  discovered_secrets: []
+});
 
 const getSessionId = computed(() => {
   // 临时使用 moduleId 作为 sessionId，实际项目中应该从后端获取真实的 sessionId
@@ -150,7 +191,7 @@ const selectNpc = async (npc: NPC) => {
   try {
     const response = await api.get(`/chat_history/${getSessionId.value}/${encodeURIComponent(npc.name)}`);
     if (response.data) {
-      messages.value = response.data.map(msg => ({
+      messages.value = response.data.map((msg: any) => ({
         content: msg.content,
         type: msg.is_npc ? 'npc' : 'player',
         time: new Date(msg.timestamp).toLocaleTimeString(),
@@ -191,6 +232,11 @@ const sendMessage = async () => {
         sender: selectedNpc.value.name
       };
       messages.value.push(npcResponse);
+      
+      allNpcsInteractedToday.value.add(selectedNpc.value.character_id);
+      
+      await checkDayCompletion();
+      
       await scrollToBottom();
     }
   } catch (error) {
@@ -237,6 +283,89 @@ onMounted(() => {
   fetchNpcs();
   fetchPlayerCharacter();
 });
+
+const checkDayCompletion = async () => {
+  if (allNpcsInteractedToday.value.size === npcs.value.length) {
+    try {
+      const response = await api.post(`/advance_day/${getSessionId.value}`);
+      if (response.data) {
+        playerCharacter.value = {
+          ...playerCharacter.value!,
+          day: response.data.day
+        };
+        allNpcsInteractedToday.value.clear();
+      }
+    } catch (error) {
+      console.error('Error advancing day:', error);
+    }
+  }
+};
+
+async function checkEnding() {
+  try {
+    const response = await api.get(`/api/game/check-ending/${getSessionId.value}`);
+    const endings = response.data.endings;
+    
+    if (endings.length > 0) {
+      // 显示结局对话框
+      showEndingDialog(endings[0]);
+    }
+  } catch (error) {
+    console.error('检查结局失败:', error);
+  }
+}
+
+function showEndingDialog(ending) {
+  api.post(`/api/game/end-session/${getSessionId.value}`, {
+    ending_id: ending.ending_id
+  }).then(() => {
+    // 跳转到结算页面
+    router.push(`/game/ending/${getSessionId.value}`);
+  }).catch((error) => {
+    console.error('接受结局失败:', error);
+  });
+}
+
+// 监听对话或行动后的状态变化
+watch(() => playerCharacter.value, {
+  deep: true,
+  handler() {
+    checkEnding();
+  }
+});
+
+const showStatusChanges = (effects) => {
+  statusChanges.value = effects;
+  showStatusChange.value = true;
+  // 3秒后自动隐藏提示
+  setTimeout(() => {
+    showStatusChange.value = false;
+  }, 3000);
+};
+
+const updatePlayerStatus = (effects) => {
+  // 更新玩家状态
+  playerStatus.value.sanity = Math.max(0, Math.min(100, playerStatus.value.sanity + effects.sanity));
+  playerStatus.value.alienation = Math.max(0, Math.min(100, playerStatus.value.alienation + effects.alienation));
+  playerStatus.value.chen_influence = Math.max(0, Math.min(100, playerStatus.value.chen_influence + effects.chen_influence));
+  playerStatus.value.liu_influence = Math.max(0, Math.min(100, playerStatus.value.liu_influence + effects.liu_influence));
+  
+  // 更新发现的秘密
+  if (effects.discovered_secrets) {
+    playerStatus.value.discovered_secrets = [
+      ...new Set([...playerStatus.value.discovered_secrets, ...effects.discovered_secrets])
+    ];
+  }
+};
+
+const getSecretName = (secretKey) => {
+  const secretNames = {
+    'chen_fraud': '陈总诈骗',
+    'liu_cult': '刘总监邪教',
+    'layoff_list': '裁员名单'
+  };
+  return secretNames[secretKey] || secretKey;
+};
 </script>
 
 <style>
@@ -453,4 +582,91 @@ onMounted(() => {
   margin-top: 8px;
   text-align: center;
 }
+
+.day-counter {
+  background-color: #2196F3;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.status-change-popup {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.status-change-content {
+  min-width: 200px;
+}
+
+.status-change-content h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #fff;
+}
+
+.status-decrease {
+  color: #ff4444;
+}
+
+.status-increase {
+  color: #44ff44;
+}
+
+.discovered-secrets {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.player-status {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  z-index: 999;
+}
+
+.status-bar {
+  width: 100%;
+  height: 10px;
+  background: #333;
+  border-radius: 5px;
+  margin: 5px 0;
+}
+
+.status-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.sanity-bar { background: #44ff44; }
+.alienation-bar { background: #ff4444; }
+.chen-bar { background: #4444ff; }
+.liu-bar { background: #ff44ff; }
 </style> 

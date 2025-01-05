@@ -95,3 +95,25 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)
     is_npc = Column(Boolean, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow) 
+
+class PlayerStatus(Base):
+    __tablename__ = "player_status"
+    
+    status_id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("game_sessions.session_id"))
+    sanity_value = Column(Integer, default=100)
+    alienation_value = Column(Integer, default=0)
+    chen_influence = Column(Integer, default=50)
+    liu_influence = Column(Integer, default=50)
+    discovered_secrets = Column(JSON, default=list)
+    completed_actions = Column(JSON, default=list)
+    last_update = Column(DateTime, default=datetime.utcnow)
+
+class GameEvent(Base):
+    __tablename__ = "game_events"
+    
+    event_id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("game_sessions.session_id"))
+    event_type = Column(String(50))  # investigation, dialogue, ritual_participation 等
+    event_data = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow) 

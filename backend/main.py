@@ -13,7 +13,11 @@ import json
 import os
 import shutil
 from datetime import datetime
-from services.ai_service import get_ai_response
+from services.ai_service import AIService
+from services.ending_service import EndingService
+import random
+from schemas import EndingSchema  # 确保这行在其他导入语句中
+from sqlalchemy import text  # 添加这个导入
 
 app = FastAPI(
     title="TRPG API",
@@ -700,77 +704,185 @@ async def upload_avatar(character_id: int, file: UploadFile = File(...)):
 @app.post("/chat/{session_id}/{npc_name}")
 async def chat_with_npc(session_id: int, npc_name: str, message: dict):
     try:
-        # 从数据库获取 NPC 信息
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        print(f"Starting chat with NPC. Session ID: {session_id}, NPC: {npc_name}, Message: {message}")
+        db = SessionLocal()
+        
+        # 初始化 AIService，使用环境变量中的配置
+        ai_service = AIService(
+            base_url='https://xiaoai.plus/v1',
+            api_key=os.getenv('OPENAI_API_KEY')
+        )
         
         try:
             # 获取 NPC 的背景信息和角色设定
-            cursor.execute("""
-                SELECT c.name, c.position, c.background, c.personality, c.chat_prompt
-                FROM characters c
-                JOIN modules m ON c.module_id = m.module_id
-                WHERE c.name = %s
-            """, (npc_name,))
-            
-            npc_info = cursor.fetchone()
-            if not npc_info:
-                raise HTTPException(status_code=404, detail="NPC not found")
-            
-            # 构建 AI 提示
-            npc_prompt = {
-                "name": npc_info[0],
-                "position": npc_info[1],
-                "background": npc_info[2],
-                "personality": npc_info[3],
-                "chat_prompt": npc_info[4]
-            }
-            
-            # 获取聊天历史
-            cursor.execute("""
-                SELECT content, is_npc
-                FROM chat_messages
-                WHERE session_id = %s AND npc_name = %s
-                ORDER BY timestamp DESC
-                LIMIT 10
-            """, (session_id, npc_name))
-            
-            chat_history = cursor.fetchall()
-            
-            # 调用 AI 服务获取回复
-            ai_response = await get_ai_response(
-                npc_prompt=npc_prompt,
-                user_message=message["message"],
-                chat_history=chat_history
+            print("Fetching NPC info...")
+            result = db.execute(
+                text("""
+                    SELECT c.name, c.position, c.background, c.personality, 
+                           c.chat_prompt, c.faction
+                    FROM characters c
+                    JOIN modules m ON c.module_id = m.module_id
+                    WHERE c.name = :npc_name
+                """),
+                {"npc_name": npc_name}
             )
             
-            # 保存对话记录
-            cursor.execute("""
-                INSERT INTO chat_messages 
-                (session_id, npc_name, content, is_npc, timestamp)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (session_id, npc_name, message["message"], False))
+            npc_info = result.fetchone()
+            if not npc_info:
+                print(f"NPC not found: {npc_name}")
+                raise HTTPException(status_code=404, detail=f"NPC not found: {npc_name}")
             
-            cursor.execute("""
-                INSERT INTO chat_messages 
-                (session_id, npc_name, content, is_npc, timestamp)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-            """, (session_id, npc_name, ai_response, True))
+            # 构建系统提示
+            system_prompt = f"""
+            你现在扮演一个名为 {npc_info[0]} 的NPC角色。
             
-            conn.commit()
+            角色信息：
+            - 职位：{npc_info[1]}
+            - 背景：{npc_info[2]}
+            - 性格：{npc_info[3]}
+            - 阵营：{npc_info[5] or '未知'}
+            
+            额外设定：{npc_info[4]}
+            
+            请以这个角色的身份回应用户的对话。除了回复内容，你还需要分析这次对话对玩家的影响。
+            
+            你必须严格按照以下JSON格式返回，不要添加任何其他内容：
+            {{
+                "response": "NPC的回复内容",
+                "effects": {{
+                    "sanity": 数值(-10到+10),
+                    "alienation": 数值(-10到+10),
+                    "chen_influence": 数值(-10到+10),
+                    "liu_influence": 数值(-10到+10),
+                    "discovered_secrets": ["secret_key1", "secret_key2"]
+                }}
+            }}
+            
+            可能的秘密关键词：
+            - chen_fraud: 陈总诈骗
+            - liu_cult: 刘总监邪教
+            - layoff_list: 裁员名单
+            """
+            
+            # 获取AI响应
+            response_data = await ai_service.get_npc_response(
+                system_prompt=system_prompt,
+                user_message=message["message"]
+            )
+            
+            # 添加详细的日志输出
+            print("\n=== AI Response Debug ===")
+            print(f"User Message: {message['message']}")
+            print(f"Raw AI Response: {response_data}")
+            print(f"Response Content: {response_data.get('response', 'No response content')}")
+            print(f"Effects: {response_data.get('effects', 'No effects')}")
+            print("========================\n")
+            
+            # 更新玩家状态
+            try:
+                # 获取当前状态
+                current_status = db.execute(
+                    text("""
+                        SELECT sanity_value, alienation_value, 
+                               chen_influence, liu_influence, discovered_secrets
+                        FROM player_status
+                        WHERE session_id = :session_id
+                    """),
+                    {"session_id": session_id}
+                ).fetchone()
+                
+                if current_status:
+                    # 计算新的状态值
+                    new_sanity = max(0, min(100, current_status[0] + response_data['effects']['sanity']))
+                    new_alienation = max(0, min(100, current_status[1] + response_data['effects']['alienation']))
+                    new_chen = max(0, min(100, current_status[2] + response_data['effects']['chen_influence']))
+                    new_liu = max(0, min(100, current_status[3] + response_data['effects']['liu_influence']))
+                    
+                    # 合并发现的秘密
+                    current_secrets = current_status[4] if current_status[4] else []
+                    new_secrets = list(set(current_secrets + response_data['effects']['discovered_secrets']))
+                    
+                    # 更新数据库
+                    db.execute(
+                        text("""
+                            UPDATE player_status
+                            SET sanity_value = :sanity,
+                                alienation_value = :alienation,
+                                chen_influence = :chen,
+                                liu_influence = :liu,
+                                discovered_secrets = :secrets
+                            WHERE session_id = :session_id
+                        """),
+                        {
+                            "session_id": session_id,
+                            "sanity": new_sanity,
+                            "alienation": new_alienation,
+                            "chen": new_chen,
+                            "liu": new_liu,
+                            "secrets": new_secrets
+                        }
+                    )
+                    
+                    print("\n=== Status Update ===")
+                    print(f"Sanity: {current_status[0]} -> {new_sanity}")
+                    print(f"Alienation: {current_status[1]} -> {new_alienation}")
+                    print(f"Chen Influence: {current_status[2]} -> {new_chen}")
+                    print(f"Liu Influence: {current_status[3]} -> {new_liu}")
+                    print(f"New Secrets: {new_secrets}")
+                    print("=====================\n")
+                else:
+                    print(f"Warning: No player status found for session {session_id}")
+            except Exception as e:
+                print(f"Error updating player status: {e}")
+                # 继续执行，不要因为状态更新失败而中断整个请求
+            
+            # 保存用户消息和 NPC 响应到数据库
+            db.execute(
+                text("""
+                    INSERT INTO chat_messages 
+                    (session_id, npc_name, content, is_npc)
+                    VALUES (:session_id, :npc_name, :content, :is_npc)
+                """),
+                {
+                    "session_id": session_id,
+                    "npc_name": npc_name,
+                    "content": message["message"],
+                    "is_npc": False
+                }
+            )
+            
+            db.execute(
+                text("""
+                    INSERT INTO chat_messages 
+                    (session_id, npc_name, content, is_npc)
+                    VALUES (:session_id, :npc_name, :content, :is_npc)
+                """),
+                {
+                    "session_id": session_id,
+                    "npc_name": npc_name,
+                    "content": response_data["response"],
+                    "is_npc": True
+                }
+            )
+            
+            db.commit()
             
             return {
-                "content": ai_response,
+                "content": response_data["response"],
+                "effects": response_data["effects"],
                 "type": "npc",
                 "time": datetime.now().isoformat()
             }
             
+        except Exception as e:
+            db.rollback()
+            print(f"Error in chat endpoint (inner): {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
         finally:
-            cursor.close()
-            conn.close()
+            db.close()
             
     except Exception as e:
-        print(f"Error in chat endpoint: {str(e)}")
+        print(f"Error in chat endpoint (outer): {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/chat_history/{session_id}/{npc_name}")
@@ -801,4 +913,103 @@ async def get_chat_history(session_id: int, npc_name: str):
             
     except Exception as e:
         print(f"Error fetching chat history: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@app.post("/advance_day/{session_id}")
+async def advance_day(session_id: str):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 更新游戏会话的天数
+        cursor.execute("""
+            UPDATE game_sessions 
+            SET current_day = current_day + 1
+            WHERE session_id = %s
+            RETURNING current_day
+        """, (session_id,))
+        
+        updated_day = cursor.fetchone()[0]
+        conn.commit()
+        
+        return {"day": updated_day}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/api/game/check-ending/{session_id}")
+def check_ending(session_id: int, db: Session = Depends(get_db)):
+    ending_service = EndingService(db)
+    endings = ending_service.check_ending_conditions(session_id)
+    return {"endings": endings}
+
+@app.post("/api/game/end-session/{session_id}")
+def end_game_session(
+    session_id: int, 
+    ending_data: EndingSchema,
+    db: Session = Depends(get_db)
+):
+    # 更新游戏会话状态为已结束
+    session = db.query(GameSession).filter_by(session_id=session_id).first()
+    session.session_status = "completed"
+    session.ending_id = ending_data.ending_id
+    db.commit()
+    return {"message": "Game session ended successfully"} 
+
+@app.post("/api/game/investigate/{session_id}")
+def investigate(
+    session_id: int,
+    action_data: dict,
+    db: Session = Depends(get_db)
+):
+    ai_service = AIService(db)
+    
+    # 记录调查事件
+    ai_service.record_event(
+        session_id=session_id,
+        event_type="investigation",
+        event_data=action_data
+    )
+    
+    # 根据调查行动更新玩家状态
+    status = db.query(PlayerStatus).filter_by(session_id=session_id).first()
+    
+    # 根据不同的调查行动更新状态
+    if action_data.get("type") == "computer_access":
+        if random.random() < 0.3:  # 30%概率被发现
+            ai_service.record_event(
+                session_id=session_id,
+                event_type="investigation",
+                event_data={"action": "illegal_access", "detected": True}
+            )
+    
+    db.commit()
+    return {"message": "Investigation recorded successfully"} 
+
+@app.get("/player-status/{session_id}")
+async def get_player_status(session_id: int, db: Session = Depends(get_db)):
+    try:
+        result = db.execute(
+            text("""
+                SELECT sanity_value, alienation_value, 
+                       chen_influence, liu_influence, discovered_secrets
+                FROM player_status
+                WHERE session_id = :session_id
+            """),
+            {"session_id": session_id}
+        ).fetchone()
+        
+        if result:
+            return {
+                "sanity": result[0],
+                "alienation": result[1],
+                "chen_influence": result[2],
+                "liu_influence": result[3],
+                "discovered_secrets": result[4] or []
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Player status not found")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
