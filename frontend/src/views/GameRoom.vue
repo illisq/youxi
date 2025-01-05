@@ -410,39 +410,53 @@ watch(() => playerCharacter.value, {
 const showStatusChanges = (changes) => {
   statusChanges.value = changes;
   showStatusChange.value = true;
-  setTimeout(() => {
+  setTimeout(async () => {
     showStatusChange.value = false;
-  }, 3000); // 增加显示时间到3秒
+    // 弹窗消失后再次确保状态同步
+    const characterId = route.params.characterId;
+    try {
+      const response = await api.get(`/player-status/${characterId}`);
+      if (response.data) {
+        playerStatus.value = response.data;
+        if (playerCharacter.value) {
+          playerCharacter.value = {
+            ...playerCharacter.value,
+            current_sanity: response.data.sanity,
+            current_alienation: response.data.alienation
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing player status:', error);
+    }
+  }, 3000);
 };
 
-const updatePlayerStatus = (effects) => {
-  const oldStatus = {
-    sanity: playerStatus.value.sanity,
-    alienation: playerStatus.value.alienation,
-    chen_influence: playerStatus.value.chen_influence,
-    liu_influence: playerStatus.value.liu_influence
-  };
+const updatePlayerStatus = async (effects) => {
+  try {
+    // 直接从 player_status 表获取最新状态
+    const characterId = route.params.characterId;
+    const response = await api.get(`/player-status/${characterId}`);
+    
+    if (response.data) {
+      // 更新 playerStatus
+      playerStatus.value = response.data;
+      
+      // 同步更新 playerCharacter
+      if (playerCharacter.value) {
+        playerCharacter.value = {
+          ...playerCharacter.value,
+          current_sanity: response.data.sanity,
+          current_alienation: response.data.alienation
+        };
+      }
+    }
 
-  // 更新 playerStatus
-  playerStatus.value = {
-    ...playerStatus.value,
-    sanity: effects.newValues?.sanity ?? oldStatus.sanity,
-    alienation: effects.newValues?.alienation ?? oldStatus.alienation,
-    chen_influence: effects.newValues?.chen_influence ?? oldStatus.chen_influence,
-    liu_influence: effects.newValues?.liu_influence ?? oldStatus.liu_influence
-  };
-
-  // 更新 playerCharacter
-  if (playerCharacter.value) {
-    playerCharacter.value = {
-      ...playerCharacter.value,
-      current_sanity: playerStatus.value.sanity,
-      current_alienation: playerStatus.value.alienation
-    };
+    // 显示状态变化
+    showStatusChanges(effects);
+  } catch (error) {
+    console.error('Error updating player status:', error);
   }
-
-  // 显示状态变化
-  showStatusChanges(effects);
 };
 
 const getSecretName = (secretKey) => {
@@ -713,15 +727,15 @@ const handleOptionSelect = async (option: any) => {
 
 .status-change-popup {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 20px;
+  right: 20px;
+  transform: none;
   background: rgba(0, 0, 0, 0.9);
   color: white;
-  padding: 20px;
+  padding: 15px;
   border-radius: 8px;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-in-out;
+  z-index: 1001;
+  animation: fadeInRight 0.3s ease-in-out;
   min-width: 300px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -732,13 +746,14 @@ const handleOptionSelect = async (option: any) => {
 
 .status-change-content h3 {
   margin: 0 0 10px 0;
-  font-size: 16px;
+  font-size: 14px;
   color: #fff;
+  text-align: left;
 }
 
 .status-change-content > div {
-  margin: 12px 0;
-  font-size: 14px;
+  margin: 8px 0;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -765,14 +780,14 @@ const handleOptionSelect = async (option: any) => {
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-@keyframes fadeIn {
+@keyframes fadeInRight {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateX(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
