@@ -96,8 +96,14 @@
         <div v-if="currentStep === 2">
           <div class="professions-list">
             <div v-for="(profession, index) in newModule.professions" :key="index" class="profession-item">
-              <input v-model="profession.name" placeholder="职业名称">
-              <textarea v-model="profession.description" placeholder="职业描述"></textarea>
+              <div class="input-group">
+                <span class="input-label">职业名称</span>
+                <input v-model="profession.name" placeholder="请输入职业名称">
+              </div>
+              <div class="input-group">
+                <span class="input-label">职业描述</span>
+                <textarea v-model="profession.description" placeholder="请输入职业描述"></textarea>
+              </div>
               <button @click="removeProfession(index)" class="remove-btn">删除</button>
             </div>
             <button @click="addProfession" class="add-btn">添加职业</button>
@@ -108,26 +114,50 @@
         <div v-if="currentStep === 3">
           <div class="npcs-list">
             <div v-for="(npc, index) in newModule.npcs" :key="index" class="npc-item">
-              <input v-model="npc.name" placeholder="NPC名称" required>
-              <input v-model="npc.position" placeholder="职位">
-              <input v-model="npc.faction" placeholder="阵营">
-              <textarea v-model="npc.background" placeholder="背景故事"></textarea>
-              <textarea v-model="npc.personality" placeholder="性格特征"></textarea>
-              <input 
-                type="number" 
-                v-model="npc.initial_attitude" 
-                placeholder="初始态度值"
-                min="-100"
-                max="100"
-              >
-              <input 
-                type="number" 
-                v-model="npc.secret_level" 
-                placeholder="秘密等级"
-                min="0"
-                max="10"
-              >
-              <textarea v-model="npc.chat_prompt" placeholder="对话提示"></textarea>
+              <div class="input-group">
+                <span class="input-label">NPC名称</span>
+                <input v-model="npc.name" placeholder="请输入NPC名称" required>
+              </div>
+              <div class="input-group">
+                <span class="input-label">职位</span>
+                <input v-model="npc.position" placeholder="请输入职位">
+              </div>
+              <div class="input-group">
+                <span class="input-label">阵营</span>
+                <input v-model="npc.faction" placeholder="请输入阵营">
+              </div>
+              <div class="input-group">
+                <span class="input-label">背景故事</span>
+                <textarea v-model="npc.background" placeholder="请输入背景故事"></textarea>
+              </div>
+              <div class="input-group">
+                <span class="input-label">性格特征</span>
+                <textarea v-model="npc.personality" placeholder="请输入性格特征"></textarea>
+              </div>
+              <div class="input-group">
+                <span class="input-label">初始态度值</span>
+                <input 
+                  type="number" 
+                  v-model="npc.initial_attitude" 
+                  placeholder="请输入初始态度值"
+                  min="-100"
+                  max="100"
+                >
+              </div>
+              <div class="input-group">
+                <span class="input-label">秘密等级</span>
+                <input 
+                  type="number" 
+                  v-model="npc.secret_level" 
+                  placeholder="请输入秘密等级"
+                  min="0"
+                  max="10"
+                >
+              </div>
+              <div class="input-group">
+                <span class="input-label">对话提示</span>
+                <textarea v-model="npc.chat_prompt" placeholder="请输入对话提示"></textarea>
+              </div>
               <button @click="removeNPC(index)" class="remove-btn">删除</button>
             </div>
             <button @click="addNPC" class="add-btn">添加NPC</button>
@@ -138,16 +168,14 @@
         <div v-if="currentStep === 4">
           <div class="endings-list">
             <div v-for="(ending, index) in newModule.endings" :key="index" class="ending-item">
-              <input 
-                v-model="ending.ending_name" 
-                placeholder="结局名称"
-                required
-              >
-              <textarea 
-                v-model="ending.ending_description" 
-                placeholder="结局描述"
-                required
-              ></textarea>
+              <div class="input-group">
+                <span class="input-label">结局名称</span>
+                <input v-model="ending.ending_name" placeholder="请输入结局名称" required>
+              </div>
+              <div class="input-group">
+                <span class="input-label">结局描述</span>
+                <textarea v-model="ending.ending_description" placeholder="请输入结局描述" required></textarea>
+              </div>
               <button @click="removeEnding(index)" class="remove-btn">删除</button>
             </div>
             <button @click="addEnding" class="add-btn">添加结局</button>
@@ -498,44 +526,57 @@ h1 {
 
 .dialog {
   background-color: white;
-  padding: 20px;
-  border-radius: 8px;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   width: 90%;
-  max-width: 500px;
+  max-width: 600px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   width: 100%;
-  padding: 8px;
+  padding: 10px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s;
 }
 
-.form-group textarea {
-  height: 100px;
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #4CAF50;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 30px;
 }
 
 .dialog-buttons button {
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s;
 }
 
 .dialog-buttons button[type="submit"] {
@@ -543,9 +584,17 @@ h1 {
   color: white;
 }
 
+.dialog-buttons button[type="submit"]:hover {
+  background-color: #45a049;
+}
+
 .dialog-buttons button[type="button"] {
-  background-color: #f44336;
+  background-color: #6c757d;
   color: white;
+}
+
+.dialog-buttons button[type="button"]:hover {
+  background-color: #5a6268;
 }
 
 .empty-state {
@@ -572,18 +621,34 @@ h1 {
 .step-indicator {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  margin: 20px 0 30px;
 }
 
 .step {
-  width: 30px;
-  height: 30px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
-  background-color: #ddd;
+  background-color: #e0e0e0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 10px;
+  margin: 0 15px;
+  font-weight: bold;
+  position: relative;
+}
+
+.step::after {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 2px;
+  background-color: #e0e0e0;
+  right: -30px;
+  top: 50%;
+}
+
+.step:last-child::after {
+  display: none;
 }
 
 .step.active {
@@ -599,34 +664,237 @@ h1 {
 .profession-item,
 .npc-item,
 .ending-item {
-  border: 1px solid #ddd;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 4px;
+  background-color: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 25px;
+  margin-bottom: 20px;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.remove-btn {
-  background-color: #f44336;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 5px;
+.profession-item:hover,
+.npc-item:hover,
+.ending-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .add-btn {
   background-color: #4CAF50;
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  width: 100%;
+  margin-top: 15px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.add-btn:hover {
+  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+}
+
+.remove-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
-  margin-top: 10px;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  opacity: 0.8;
+}
+
+.remove-btn:hover {
+  background-color: #c82333;
+  opacity: 1;
+}
+
+.npc-item input,
+.npc-item textarea {
+  margin-bottom: 10px;
+}
+
+.ending-item input,
+.ending-item textarea {
+  margin-bottom: 10px;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
 }
 
 .dialog {
   max-height: 80vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
+}
+
+.dialog::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dialog::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.dialog::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.dialog::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* 通用输入框样式 */
+.profession-item input,
+.profession-item textarea,
+.npc-item input,
+.npc-item textarea,
+.ending-item input,
+.ending-item textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+  background-color: white;
+}
+
+/* 输入框焦点样式 */
+.profession-item input:focus,
+.profession-item textarea:focus,
+.npc-item input:focus,
+.npc-item textarea:focus,
+.ending-item input:focus,
+.ending-item textarea:focus {
+  border-color: #4CAF50;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+/* 输入框标签样式 */
+.input-label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* 项目卡片样式优化 */
+.profession-item,
+.npc-item,
+.ending-item {
+  background-color: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 25px;
+  margin-bottom: 20px;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.profession-item:hover,
+.npc-item:hover,
+.ending-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 文本框样式 */
+textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+/* 数字输入框特殊样式 */
+input[type="number"] {
+  width: 120px;
+  text-align: center;
+}
+
+/* 删除按钮位置调整 */
+.remove-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  opacity: 0.8;
+}
+
+.remove-btn:hover {
+  background-color: #c82333;
+  opacity: 1;
+}
+
+/* 添加按钮样式优化 */
+.add-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  width: 100%;
+  margin-top: 15px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.add-btn:hover {
+  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+}
+
+/* 输入组样式 */
+.input-group {
+  margin-bottom: 15px;
+}
+
+.input-group:last-child {
+  margin-bottom: 0;
+}
+
+/* 添加分隔线 */
+.profession-item + .profession-item,
+.npc-item + .npc-item,
+.ending-item + .ending-item {
+  border-top: 1px solid #f0f0f0;
 }
 </style> 
