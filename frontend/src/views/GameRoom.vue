@@ -91,19 +91,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
 import { generateTextAvatar } from '../utils/avatar';
 
 const route = useRoute();
 const router = useRouter();
-const npcs = ref([]);
-const selectedNpc = ref(null);
-const messages = ref([]);
+
+interface NPC {
+  character_id: number;
+  name: string;
+  position: string;
+}
+
+interface Message {
+  content: string;
+  type: string;
+  time: string;
+  sender?: string;
+}
+
+interface PlayerCharacter {
+  name: string;
+  current_sanity: number;
+  current_alienation: number;
+}
+
+const npcs = ref<NPC[]>([]);
+const selectedNpc = ref<NPC | null>(null);
+const messages = ref<Message[]>([]);
 const newMessage = ref('');
-const messagesContainer = ref(null);
-const playerCharacter = ref(null);
+const messagesContainer = ref<HTMLElement | null>(null);
+const playerCharacter = ref<PlayerCharacter | null>(null);
+
+const getSessionId = computed(() => {
+  // 临时使用 moduleId 作为 sessionId，实际项目中应该从后端获取真实的 sessionId
+  return route.params.moduleId;
+});
 
 // 获取模组NPC列表
 const fetchNpcs = async () => {
@@ -118,10 +143,24 @@ const fetchNpcs = async () => {
   }
 };
 
-const selectNpc = (npc) => {
+const selectNpc = async (npc: NPC) => {
   selectedNpc.value = npc;
   messages.value = []; // 清空当前对话
-  // 可以在这里加载与该NPC的历史对话
+  
+  try {
+    const response = await api.get(`/chat_history/${getSessionId.value}/${encodeURIComponent(npc.name)}`);
+    if (response.data) {
+      messages.value = response.data.map(msg => ({
+        content: msg.content,
+        type: msg.is_npc ? 'npc' : 'player',
+        time: new Date(msg.timestamp).toLocaleTimeString(),
+        sender: msg.sender
+      }));
+      await scrollToBottom();
+    }
+  } catch (error) {
+    console.error('Error loading chat history:', error);
+  }
 };
 
 const sendMessage = async () => {
@@ -134,26 +173,34 @@ const sendMessage = async () => {
   };
 
   messages.value.push(message);
+  const messageToSend = newMessage.value;
   newMessage.value = '';
 
-  // 滚动到最新消息
   await scrollToBottom();
 
-  // 模拟NPC回复
-  setTimeout(async () => {
-    try {
-      // TODO: 这里应该调用后端API获取NPC回复
-      const response = {
-        content: `[${selectedNpc.value.name}] 这是一个模拟的回复消息。`,
+  try {
+    const response = await api.post(`/chat/${getSessionId.value}/${encodeURIComponent(selectedNpc.value.name)}`, {
+      message: messageToSend
+    });
+
+    if (response.data) {
+      const npcResponse = {
+        content: response.data.content,
         type: 'npc',
-        time: new Date().toLocaleTimeString()
+        time: new Date().toLocaleTimeString(),
+        sender: selectedNpc.value.name
       };
-      messages.value.push(response);
+      messages.value.push(npcResponse);
       await scrollToBottom();
-    } catch (error) {
-      console.error('Error getting NPC response:', error);
     }
-  }, 1000);
+  } catch (error) {
+    console.error('Error getting NPC response:', error);
+    messages.value.push({
+      content: '抱歉，暂时无法获取回复，请稍后再试。',
+      type: 'system',
+      time: new Date().toLocaleTimeString()
+    });
+  }
 };
 
 const scrollToBottom = async () => {
@@ -180,7 +227,7 @@ const fetchPlayerCharacter = async () => {
 };
 
 // 生成头像URL的计算属性
-const getAvatarUrl = (name) => {
+const getAvatarUrl = (name: string): string => {
   return generateTextAvatar(name);
 };
 

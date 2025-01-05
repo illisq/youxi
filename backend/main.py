@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()  # 加载 .env 文件中的环境变量
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,6 +12,8 @@ import models
 import json
 import os
 import shutil
+from datetime import datetime
+from services.ai_service import get_ai_response
 
 app = FastAPI(
     title="TRPG API",
@@ -691,4 +695,110 @@ async def upload_avatar(character_id: int, file: UploadFile = File(...)):
             
         return {"avatar_url": avatar_url}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@app.post("/chat/{session_id}/{npc_name}")
+async def chat_with_npc(session_id: int, npc_name: str, message: dict):
+    try:
+        # 从数据库获取 NPC 信息
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # 获取 NPC 的背景信息和角色设定
+            cursor.execute("""
+                SELECT c.name, c.position, c.background, c.personality, c.chat_prompt
+                FROM characters c
+                JOIN modules m ON c.module_id = m.module_id
+                WHERE c.name = %s
+            """, (npc_name,))
+            
+            npc_info = cursor.fetchone()
+            if not npc_info:
+                raise HTTPException(status_code=404, detail="NPC not found")
+            
+            # 构建 AI 提示
+            npc_prompt = {
+                "name": npc_info[0],
+                "position": npc_info[1],
+                "background": npc_info[2],
+                "personality": npc_info[3],
+                "chat_prompt": npc_info[4]
+            }
+            
+            # 获取聊天历史
+            cursor.execute("""
+                SELECT content, is_npc
+                FROM chat_messages
+                WHERE session_id = %s AND npc_name = %s
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """, (session_id, npc_name))
+            
+            chat_history = cursor.fetchall()
+            
+            # 调用 AI 服务获取回复
+            ai_response = await get_ai_response(
+                npc_prompt=npc_prompt,
+                user_message=message["message"],
+                chat_history=chat_history
+            )
+            
+            # 保存对话记录
+            cursor.execute("""
+                INSERT INTO chat_messages 
+                (session_id, npc_name, content, is_npc, timestamp)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            """, (session_id, npc_name, message["message"], False))
+            
+            cursor.execute("""
+                INSERT INTO chat_messages 
+                (session_id, npc_name, content, is_npc, timestamp)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            """, (session_id, npc_name, ai_response, True))
+            
+            conn.commit()
+            
+            return {
+                "content": ai_response,
+                "type": "npc",
+                "time": datetime.now().isoformat()
+            }
+            
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/chat_history/{session_id}/{npc_name}")
+async def get_chat_history(session_id: int, npc_name: str):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT content, is_npc, timestamp
+                FROM chat_messages
+                WHERE session_id = %s AND npc_name = %s
+                ORDER BY timestamp ASC
+            """, (session_id, npc_name))
+            
+            messages = cursor.fetchall()
+            return [{
+                "content": msg[0],
+                "is_npc": msg[1],
+                "timestamp": msg[2].isoformat(),
+                "sender": npc_name if msg[1] else "player"
+            } for msg in messages]
+            
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        print(f"Error fetching chat history: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
