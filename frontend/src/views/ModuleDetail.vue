@@ -19,10 +19,39 @@
               难度: {{ module.difficulty }}
             </span>
           </div>
+          <button class="start-button" @click="showProfessionSelect = true" v-if="!showProfessionSelect">
+            开始游戏
+          </button>
         </div>
       </div>
 
-      <div class="sections">
+      <div class="profession-select" v-if="showProfessionSelect">
+        <h2>选择你的职业</h2>
+        <div class="profession-grid">
+          <div 
+            v-for="profession in module.professions" 
+            :key="profession.profession_id"
+            class="profession-card"
+            :class="{ selected: selectedProfession === profession.profession_id }"
+            @click="selectedProfession = profession.profession_id"
+          >
+            <h3>{{ profession.name }}</h3>
+            <p>{{ profession.description }}</p>
+          </div>
+        </div>
+        <div class="action-buttons">
+          <button class="cancel-button" @click="cancelSelection">取消</button>
+          <button 
+            class="confirm-button" 
+            @click="createCharacter"
+            :disabled="!selectedProfession"
+          >
+            确认选择
+          </button>
+        </div>
+      </div>
+
+      <div class="sections" v-if="!showProfessionSelect">
         <div class="section professions">
           <h2>可选职业</h2>
           <div class="profession-list">
@@ -46,6 +75,8 @@ import api from '../services/api';
 const route = useRoute();
 const router = useRouter();
 const module = ref<any>(null);
+const showProfessionSelect = ref(false);
+const selectedProfession = ref<number | null>(null);
 
 const fetchModuleDetail = async () => {
   try {
@@ -54,6 +85,37 @@ const fetchModuleDetail = async () => {
   } catch (error) {
     console.error('Error fetching module details:', error);
   }
+};
+
+const createCharacter = async () => {
+  if (!selectedProfession.value) return;
+  
+  try {
+    const response = await api.post('/create-game-character/', {
+      module_id: Number(route.params.id),
+      profession_id: selectedProfession.value
+    });
+    
+    console.log('Character created:', response.data);
+    
+    // 使用完整的路径进行跳转
+    await router.push(`/game/${route.params.id}/${response.data.player_character_id}`);
+    
+    /* 或者使用对象方式：
+    await router.push({
+      path: `/game/${route.params.id}/${response.data.player_character_id}`
+    });
+    */
+  } catch (error) {
+    console.error('Error creating character:', error);
+    const errorMessage = error.response?.data?.detail || '创建角色失败，请重试';
+    alert(errorMessage);
+  }
+};
+
+const cancelSelection = () => {
+  showProfessionSelect.value = false;
+  selectedProfession.value = null;
 };
 
 onMounted(() => {
@@ -185,5 +247,84 @@ onMounted(() => {
   .cover-image, .placeholder-image {
     height: 200px;
   }
+}
+
+.start-button {
+  margin-top: 20px;
+  padding: 12px 24px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.start-button:hover {
+  background-color: var(--primary-color-dark);
+}
+
+.profession-select {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 24px;
+}
+
+.profession-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.profession-card {
+  border: 2px solid #eee;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.profession-card:hover {
+  border-color: var(--primary-color);
+}
+
+.profession-card.selected {
+  border-color: var(--primary-color);
+  background-color: var(--primary-color-light);
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.cancel-button, .confirm-button {
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.cancel-button {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.confirm-button {
+  background-color: var(--primary-color);
+  border: none;
+  color: white;
+}
+
+.confirm-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 </style> 

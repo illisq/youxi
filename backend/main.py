@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from database import get_db_connection, SessionLocal, engine
 import schemas
 import models
+import json
 
 app = FastAPI(
     title="TRPG API",
@@ -105,6 +106,42 @@ class ModuleCreate(BaseModel):
     professions: List[ProfessionCreate] = []
     npcs: List[CharacterCreate] = []     # 保持字段名为 npcs 以兼容前端
     endings: List[EndingCreate] = []
+
+class PlayerBase(BaseModel):
+    username: str
+    email: str
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
+
+class PlayerCreate(PlayerBase):
+    password: str
+
+class PlayerResponse(PlayerBase):
+    player_id: int
+    total_play_time: int = 0
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
+    achievements: Optional[dict] = {}
+
+class PlayerCharacterBase(BaseModel):
+    module_id: int
+    profession_id: int
+    current_sanity: Optional[int] = 100
+    current_alienation: Optional[int] = 0
+    inventory: Optional[dict] = {}
+    completed_phases: Optional[dict] = {}
+    current_status: Optional[str] = "active"
+
+class PlayerCharacterCreate(PlayerCharacterBase):
+    player_id: int
+
+class PlayerCharacterResponse(PlayerCharacterBase):
+    player_character_id: int
+    creation_time: str
+
+class SimpleCharacterCreate(BaseModel):
+    module_id: int
+    profession_id: int
 
 # 模组相关路由
 @app.get("/modules/", response_model=List[dict])
@@ -393,3 +430,188 @@ def check_db_status(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
+
+# Players 相关路由
+@app.post("/players/", response_model=PlayerResponse)
+async def create_player(player: PlayerCreate):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # 检查用户名是否已存在
+        cursor.execute("SELECT 1 FROM players WHERE username = %s", (player.username,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        # 检查邮箱是否已存在
+        cursor.execute("SELECT 1 FROM players WHERE email = %s", (player.email,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # TODO: 在实际应用中应该对密码进行哈希处理
+        cursor.execute("""
+            INSERT INTO players (username, email, password_hash, bio, profile_image_url)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING player_id, username, email, created_at, bio, profile_image_url, total_play_time, achievements
+        """, (player.username, player.email, player.password, player.bio, player.profile_image_url))
+        
+        new_player = cursor.fetchone()
+        conn.commit()
+        
+        return {
+            "player_id": new_player[0],
+            "username": new_player[1],
+            "email": new_player[2],
+            "created_at": new_player[3].isoformat() if new_player[3] else None,
+            "bio": new_player[4],
+            "profile_image_url": new_player[5],
+            "total_play_time": new_player[6],
+            "achievements": new_player[7]
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/players/{player_id}", response_model=PlayerResponse)
+async def get_player(player_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT player_id, username, email, created_at, last_login, 
+                   profile_image_url, bio, total_play_time, achievements
+            FROM players
+            WHERE player_id = %s
+        """, (player_id,))
+        
+        player = cursor.fetchone()
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+            
+        return {
+            "player_id": player[0],
+            "username": player[1],
+            "email": player[2],
+            "created_at": player[3].isoformat() if player[3] else None,
+            "last_login": player[4].isoformat() if player[4] else None,
+            "profile_image_url": player[5],
+            "bio": player[6],
+            "total_play_time": player[7],
+            "achievements": player[8]
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+# Player Characters 相关路由
+@app.post("/player-characters/", response_model=PlayerCharacterResponse)
+async def create_player_character(character: PlayerCharacterCreate):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO player_characters (
+                player_id, module_id, profession_id, current_sanity,
+                current_alienation, inventory, completed_phases, current_status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING player_character_id, creation_time
+        """, (
+            character.player_id, character.module_id, character.profession_id,
+            character.current_sanity, character.current_alienation,
+            json.dumps(character.inventory), json.dumps(character.completed_phases),
+            character.current_status
+        ))
+        
+        new_character = cursor.fetchone()
+        conn.commit()
+        
+        return {
+            **character.dict(),
+            "player_character_id": new_character[0],
+            "creation_time": new_character[1].isoformat()
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/players/{player_id}/characters", response_model=List[PlayerCharacterResponse])
+async def get_player_characters(player_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT player_character_id, module_id, profession_id, creation_time,
+                   current_sanity, current_alienation, inventory, completed_phases,
+                   current_status
+            FROM player_characters
+            WHERE player_id = %s
+        """, (player_id,))
+        
+        characters = cursor.fetchall()
+        return [{
+            "player_character_id": c[0],
+            "module_id": c[1],
+            "profession_id": c[2],
+            "creation_time": c[3].isoformat(),
+            "current_sanity": c[4],
+            "current_alienation": c[5],
+            "inventory": c[6],
+            "completed_phases": c[7],
+            "current_status": c[8]
+        } for c in characters]
+    finally:
+        cursor.close()
+        conn.close() 
+
+@app.post("/create-game-character/", response_model=PlayerCharacterResponse)
+async def create_game_character(character: SimpleCharacterCreate):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # 简化的 SQL 语句，使用默认值
+        cursor.execute("""
+            INSERT INTO player_characters (
+                player_id,
+                module_id,
+                profession_id
+            )
+            VALUES (%s, %s, %s)
+            RETURNING 
+                player_character_id, 
+                creation_time, 
+                current_sanity, 
+                current_alienation, 
+                inventory, 
+                completed_phases, 
+                current_status
+        """, (
+            1,                      # 固定 player_id 为 1
+            character.module_id,
+            character.profession_id
+        ))
+        
+        result = cursor.fetchone()
+        conn.commit()
+        
+        return {
+            "player_character_id": result[0],
+            "module_id": character.module_id,
+            "profession_id": character.profession_id,
+            "creation_time": result[1].isoformat(),
+            "current_sanity": result[2],
+            "current_alienation": result[3],
+            "inventory": result[4] if result[4] else {},
+            "completed_phases": result[5] if result[5] else {},
+            "current_status": result[6]
+        }
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating character: {e}")
+        # 添加更详细的错误信息
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create character: {str(e)}"
+        )
+    finally:
+        cursor.close()
+        conn.close() 

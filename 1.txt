@@ -273,6 +273,33 @@ player_response: 玩家回应的内容。
 discovered_secrets: 在对话中发现的秘密，以JSON格式存储。
 influence_changes: 对话中影响力的变化，以JSON格式存储。
 dialogue_time: 对话发生的时间。
+
+玩家表 (players)
+
+player_id: INT, 主键，玩家的唯一标识符。
+username: VARCHAR(50), 玩家用户名，唯一。
+email: VARCHAR(100), 玩家邮箱地址，唯一。
+password_hash: VARCHAR(255), 玩家密码的哈希值，用于安全存储。
+created_at: TIMESTAMP, 玩家账号的创建时间。
+last_login: TIMESTAMP, 玩家上次登录时间。
+profile_image_url: VARCHAR(255), 玩家个人资料图片的URL。
+bio: TEXT, 玩家个人简介或自我描述。
+total_play_time: INT, 玩家总的游戏时间，以分钟为单位。
+achievements: JSON, 玩家获得的成就，以JSON格式存储。
+
+玩家角色表 (player_characters)
+
+player_character_id: INT, 主键，唯一标识玩家在某个模块中创建的角色。
+player_id: INT, 外键，关联到玩家表中的玩家ID。
+module_id: INT, 外键，关联到模块表中的模块ID。
+profession_id: INT, 外键，关联到职业表中的职业ID。
+creation_time: TIMESTAMP, 角色创建时间。
+current_sanity: INT, 当前角色的理智值。
+current_alienation: INT, 当前角色的异化值。
+inventory: JSON, 当前角色的物品清单。
+completed_phases: JSON, 记录玩家在模块中完成的阶段。
+current_status: VARCHAR(20), 当前角色的状态（如“进行中”、“已完成”等）。
+
 这是我想设计的模组故事背景：一个小公司要裁员了，故事里有会计、程序员、美工、运营、产品等等（常见的互联网公司职位，玩家可以自己选择职业），公司内部有两个派系，一个是陈总（公司创始人之一），一个是刘总监（也是公司的元老，且曾经是连续多年的销冠，再公司就连陈总也要给他面子）。现在主人公作为一个小职员要多和周围人沟通并站队（支持陈总还是刘总监），然后想办法找到裁员名单。然而在找名单的过程中，发现刘总监背后隐藏的秘密，他竟然是邪教成员，他的业绩都与供奉的邪神有关。而陈总背后也隐藏了秘密，他已将妻儿老小都转移到了国外，准备再骗一波投资人的钱就跑路。再加一个设定，公司会时刻监控员工的电脑。设计多种结局：
 结局一，主人公什么都没干，在某天的早晨被裁了
 结局二，经过一番波折发现了裁员名单，但是因为获取的方法不正当被大家唾弃，于是主动离职
