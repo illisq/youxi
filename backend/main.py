@@ -851,36 +851,45 @@ async def chat_with_npc(player_character_id: int, npc_name: str, message: dict):
                 # 继续执行，不要因为状态更新失败而中断整个请求
             
             # 保存用户消息和 NPC 响应到数据库
-            db.execute(
-                text("""
-                    INSERT INTO chat_messages 
-                    (session_id, npc_name, content, is_npc)
-                    VALUES (:session_id, :npc_name, :content, :is_npc)
-                """),
-                {
-                    "session_id": player_character_id,
-                    "npc_name": npc_name,
-                    "content": message["message"],
-                    "is_npc": False
-                }
-            )
+            try:
+                # 保存用户消息
+                db.execute(
+                    text("""
+                        INSERT INTO chat_messages 
+                        (session_id, npc_name, content, is_npc, timestamp)
+                        VALUES (:session_id, :npc_name, :content, :is_npc, CURRENT_TIMESTAMP)
+                    """),
+                    {
+                        "session_id": player_character_id,
+                        "npc_name": npc_name,
+                        "content": message["message"],
+                        "is_npc": False
+                    }
+                )
+                
+                # 保存NPC响应
+                db.execute(
+                    text("""
+                        INSERT INTO chat_messages 
+                        (session_id, npc_name, content, is_npc, timestamp)
+                        VALUES (:session_id, :npc_name, :content, :is_npc, CURRENT_TIMESTAMP)
+                    """),
+                    {
+                        "session_id": player_character_id,
+                        "npc_name": npc_name,
+                        "content": response_data["response"],
+                        "is_npc": True
+                    }
+                )
+                
+                db.commit()
+                
+            except Exception as e:
+                db.rollback()
+                print(f"Error saving chat messages: {e}")
+                raise
             
-            db.execute(
-                text("""
-                    INSERT INTO chat_messages 
-                    (session_id, npc_name, content, is_npc)
-                    VALUES (:session_id, :npc_name, :content, :is_npc)
-                """),
-                {
-                    "session_id": player_character_id,
-                    "npc_name": npc_name,
-                    "content": response_data["response"],
-                    "is_npc": True
-                }
-            )
-            
-            db.commit()
-            
+            # 将返回值移到这里，确保所有数据库操作都完成
             return {
                 "content": response_data["response"],
                 "effects": response_data["effects"],
@@ -899,21 +908,33 @@ async def chat_with_npc(player_character_id: int, npc_name: str, message: dict):
         print(f"Error in chat endpoint (outer): {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/chat_history/{session_id}/{npc_name}")
-async def get_chat_history(session_id: int, npc_name: str):
+@app.get("/chat_history/{player_character_id}/{npc_name}")
+async def get_chat_history(player_character_id: int, npc_name: str):
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
+        db = SessionLocal()
         try:
-            cursor.execute("""
-                SELECT content, is_npc, timestamp
-                FROM chat_messages
-                WHERE session_id = %s AND npc_name = %s
-                ORDER BY timestamp ASC
-            """, (session_id, npc_name))
+            # 添加日志以便调试
+            print(f"Fetching chat history for player_character_id {player_character_id} and NPC {npc_name}")
             
-            messages = cursor.fetchall()
+            result = db.execute(
+                text("""
+                    SELECT content, is_npc, timestamp
+                    FROM chat_messages
+                    WHERE session_id = :session_id 
+                    AND npc_name = :npc_name
+                    ORDER BY timestamp ASC
+                """),
+                {
+                    "session_id": player_character_id,  # 使用 player_character_id 作为 session_id
+                    "npc_name": npc_name
+                }
+            )
+            
+            messages = result.fetchall()
+            
+            # 添加日志以便调试
+            print(f"Found {len(messages)} messages")
+            
             return [{
                 "content": msg[0],
                 "is_npc": msg[1],
@@ -922,12 +943,11 @@ async def get_chat_history(session_id: int, npc_name: str):
             } for msg in messages]
             
         finally:
-            cursor.close()
-            conn.close()
+            db.close()
             
     except Exception as e:
         print(f"Error fetching chat history: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/advance_day/{session_id}")
 async def advance_day(session_id: str):

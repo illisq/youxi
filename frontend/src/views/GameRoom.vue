@@ -228,20 +228,7 @@ const selectNpc = async (npc: NPC) => {
   selectedNpc.value = npc;
   messages.value = []; // 清空当前对话
   
-  try {
-    const response = await api.get(`/chat_history/${getSessionId.value}/${encodeURIComponent(npc.name)}`);
-    if (response.data) {
-      messages.value = response.data.map((msg: any) => ({
-        content: msg.content,
-        type: msg.is_npc ? 'npc' : 'player',
-        time: new Date(msg.timestamp).toLocaleTimeString(),
-        sender: msg.sender
-      }));
-      await scrollToBottom();
-    }
-  } catch (error) {
-    console.error('Error loading chat history:', error);
-  }
+  await loadChatHistory(npc.name);
 };
 
 const sendMessage = async () => {
@@ -491,6 +478,25 @@ const handleOptionSelect = async (option: any) => {
   
   // 在处理完选项后更新状态
   await updatePlayerCharacterStatus();
+};
+
+// 修改获取聊天历史的方法
+const loadChatHistory = async (npcName: string) => {
+    try {
+        const characterId = route.params.characterId;
+        const response = await api.get(`/chat_history/${characterId}/${encodeURIComponent(npcName)}`);
+        if (response.data) {
+            messages.value = response.data.map((msg: any) => ({
+                content: msg.content,
+                type: msg.is_npc ? 'npc' : 'player',
+                time: new Date(msg.timestamp).toLocaleTimeString(),
+                sender: msg.sender
+            }));
+            await scrollToBottom();
+        }
+    } catch (error) {
+        console.error('Error loading chat history:', error);
+    }
 };
 </script>
 
