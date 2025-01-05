@@ -151,6 +151,128 @@ CREATE TABLE dialogue_history (
     FOREIGN KEY (session_id) REFERENCES game_sessions(session_id),
     FOREIGN KEY (character_id) REFERENCES characters(character_id)
 );
+
+1. 模块表 (modules)
+
+module_id: 模块的唯一标识符，主键。
+title: 模块的标题，描述模块的名称。
+description: 模块的详细描述，提供背景信息。
+player_min: 模块可参与的最小玩家数量。
+player_max: 模块可参与的最大玩家数量。
+duration_hours: 预计完成模块所需的时间，以小时为单位。
+difficulty: 模块的难度等级，默认为“medium”。
+theme: 模块的主题，描述游戏的背景或主旨。
+create_time: 模块的创建时间。
+cover_image_url: 模块封面图片的URL。
+2. 角色表 (characters)
+
+character_id: 角色的唯一标识符，主键。
+module_id: 角色所属的模块ID，外键。
+name: 角色的名称。
+position: 角色在游戏中的职位。
+faction: 角色所属的阵营。
+avatar_url: 角色的头像URL。
+background: 角色的背景故事。
+personality: 角色的性格特征。
+initial_attitude: 角色的初始态度值。
+secret_level: 角色的秘密等级。
+chat_prompt: 角色的对话提示。
+
+3. 职业表 (professions)
+
+profession_id: 职业的唯一标识符，主键。
+module_id: 职业所属的模块ID，外键。
+name: 职业的名称。
+description: 职业的描述。
+initial_skills: 职业的初始技能值，以JSON格式存储。
+special_abilities: 职业的特殊能力。
+starting_items: 职业的起始道具，以JSON格式存储。
+4. 游戏阶段表 (game_phases)
+
+phase_id: 游戏阶段的唯一标识符，主键。
+module_id: 阶段所属的模块ID，外键。
+phase_name: 阶段的名称。
+phase_order: 阶段的顺序。
+description: 阶段的描述。
+required_progress: 阶段所需的进度。
+unlock_conditions: 阶段的解锁条件，以JSON格式存储。
+available_actions: 阶段的可用动作，以JSON格式存储。
+5. 秘密信息表 (secrets)
+
+secret_id: 秘密的唯一标识符，主键。
+module_id: 秘密所属的模块ID，外键。
+related_character_id: 相关角色的ID，外键。
+secret_type: 秘密的类型。
+content: 秘密的内容。
+sanity_loss: 发现秘密后的理智损失值。
+alienation_increase: 发现秘密后的异化增加值。
+discovery_difficulty: 发现秘密的难度。
+keywords: 秘密的关键词，以JSON格式存储。
+unlock_conditions: 秘密的解锁条件，以JSON格式存储。
+
+6. 结局条件表 (ending_conditions)
+
+ending_id: 结局的唯一标识符，主键。
+module_id: 结局所属的模块ID，外键。
+ending_name: 结局的名称。
+ending_description: 结局的描述。
+required_sanity_range: 所需的理智范围，以JSON格式存储。
+required_alienation_range: 所需的异化范围，以JSON格式存储。
+required_faction_influence: 所需的阵营影响力，以JSON格式存储。
+required_secrets: 所需发现的秘密，以JSON格式存储。
+required_actions: 所需完成的动作，以JSON格式存储。
+ending_script: 结局的剧本。
+7. 游戏会话表 (game_sessions)
+
+session_id: 游戏会话的唯一标识符，主键。
+module_id: 会话所属的模块ID，外键。
+player_id: 玩家ID。
+profession_id: 职业ID，外键。
+current_phase_id: 当前阶段ID，外键。
+sanity_value: 当前理智值。
+alienation_value: 当前异化值。
+chen_influence: 陈总的影响力。
+liu_influence: 刘总监的影响力。
+discovered_secrets: 已发现的秘密，以JSON格式存储。
+completed_actions: 已完成的动作，以JSON格式存储。
+session_status: 会话的状态。
+start_time: 会话的开始时间。
+last_save_time: 最后保存的时间。
+8. 游戏动作表 (game_actions)
+
+action_id: 动作的唯一标识符，主键。
+module_id: 动作所属的模块ID，外键。
+action_name: 动作的名称。
+action_type: 动作的类型。
+description: 动作的描述。
+risk_level: 动作的风险等级。
+detection_chance: 动作被发现的概率。
+sanity_effect: 动作对理智的影响。
+alienation_effect: 动作对异化的影响。
+influence_effects: 动作影响力变化，以JSON格式存储。
+required_skills: 动作所需的技能，以JSON格式存储。
+success_outcome: 动作成功的结果。
+failure_outcome: 动作失败的结果。
+9. 监控事件表 (monitoring_events)
+
+event_id: 事件的唯一标识符，主键。
+session_id: 事件所属的会话ID，外键。
+action_id: 事件关联的动作ID，外键。
+detection_roll: 检测骰值。
+was_detected: 是否被发现。
+consequence_type: 后果类型。
+consequence_description: 后果描述。
+event_time: 事件发生的时间。
+10. 对话历史表 (dialogue_history)
+
+dialogue_id: 对话的唯一标识符，主键。
+session_id: 对话所属的会话ID，外键。
+character_id: 对话的角色ID，外键。
+dialogue_content: 对话的内容。
+player_response: 玩家回应的内容。
+discovered_secrets: 在对话中发现的秘密，以JSON格式存储。
+influence_changes: 对话中影响力的变化，以JSON格式存储。
+dialogue_time: 对话发生的时间。
 这是我想设计的模组故事背景：一个小公司要裁员了，故事里有会计、程序员、美工、运营、产品等等（常见的互联网公司职位，玩家可以自己选择职业），公司内部有两个派系，一个是陈总（公司创始人之一），一个是刘总监（也是公司的元老，且曾经是连续多年的销冠，再公司就连陈总也要给他面子）。现在主人公作为一个小职员要多和周围人沟通并站队（支持陈总还是刘总监），然后想办法找到裁员名单。然而在找名单的过程中，发现刘总监背后隐藏的秘密，他竟然是邪教成员，他的业绩都与供奉的邪神有关。而陈总背后也隐藏了秘密，他已将妻儿老小都转移到了国外，准备再骗一波投资人的钱就跑路。再加一个设定，公司会时刻监控员工的电脑。设计多种结局：
 结局一，主人公什么都没干，在某天的早晨被裁了
 结局二，经过一番波折发现了裁员名单，但是因为获取的方法不正当被大家唾弃，于是主动离职
@@ -408,3 +530,342 @@ NPC之间也存在复杂关系网
 心理学
 计算机操作
 隐蔽行动
+
+1. 插入模组基本信息
+
+INSERT INTO modules (
+    module_id,
+    title,
+    description,
+    player_min,
+    player_max,
+    duration_hours,
+    difficulty,
+    theme,
+    create_time
+) VALUES (
+    1,
+    '蓝海科技',
+    '在这场职场生存游戏中，每个微笑背后都藏着刀锋，每份文件里都可能埋着地雷。当你终于看清真相，却发现自己早已深陷其中。在蓝海科技，不是所有加班的人都在工作，不是所有微笑的人都是你的朋友。',
+    3,
+    5,
+    8,
+    'medium',
+    '职场/克苏鲁/剧情',
+    CURRENT_TIMESTAMP
+);
+
+3. 插入职业选项
+
+INSERT INTO professions (
+    profession_id,
+    module_id,
+    name,
+    description,
+    initial_skills
+) VALUES 
+(1, 1, '程序员', 
+ '技术部门的代码工程师',
+ '{"computer": 80, "logic": 70, "social": 40, "investigation": 60}'),
+
+(2, 1, '会计',
+ '财务部门的数据专家',
+ '{"finance": 80, "investigation": 70, "social": 50, "observation": 60}'),
+
+(3, 1, '销售',
+ '销售部门的业务精英',
+ '{"social": 80, "persuasion": 70, "observation": 60, "investigation": 50}'),
+
+(4, 1, '产品经理',
+ '产品部门的需求分析师',
+ '{"analysis": 80, "social": 70, "logic": 60, "observation": 60}');
+4. 插入秘密信息
+
+INSERT INTO secrets (
+    secret_id,
+    module_id,
+    related_character_id,
+    secret_type,
+    content,
+    sanity_loss,
+    alienation_increase,
+    discovery_difficulty
+) VALUES 
+(1, 1, 1, '财务诈骗',
+ '陈总已将家人转移海外，准备携款潜逃，诈骗投资人的计划。',
+ 10, 5, 80),
+
+(2, 1, 2, '邪教',
+ '刘总监是邪教成员，用邪术获取业绩，在会议室进行诡异仪式。',
+ 20, 15, 85),
+
+(3, 1, 3, '裁员',
+ '完整的裁员名单，包含具体裁员计划和时间表。',
+ 5, 0, 70);
+6. 插入游戏阶段
+INSERT INTO game_phases (
+    phase_id,
+    module_id,
+    phase_name,
+    phase_order,
+    description
+) VALUES 
+(1, 1, '初始阶段',
+ 1,
+ '了解公司环境，收集基础信息'),
+
+(2, 1, '调查阶段',
+ 2,
+ '深入调查各种秘密，与NPC建立关系'),
+
+(3, 1, '选择阶段',
+ 3,
+ '根据发现做出最终选择，触发相应结局');
+7. 插入游戏动作
+
+INSERT INTO game_actions (
+    action_id,
+    module_id,
+    action_name,
+    action_type,
+    description,
+    risk_level,
+    detection_chance
+) VALUES 
+(1, 1, '查看电脑文件',
+ '调查',
+ '尝试查看公司内部文件',
+ 70,
+ 60),
+
+(2, 1, '与同事闲聊',
+ '社交',
+ '通过日常交谈收集信息',
+ 20,
+ 30),
+
+(3, 1, '加班观察',
+ '调查',
+ '留下来加班，观察可疑活动',
+ 50,
+ 40);
+
+所有NPC角色信息。
+
+INSERT INTO characters (
+    character_id,
+    module_id,
+    name,
+    position,
+    faction,
+    background,
+    personality,
+    secret_level,
+    chat_prompt
+) VALUES 
+-- 管理层
+(1, 1, '陈明远', 'CEO', '陈总阵营', 
+ '42岁，公司创始人兼CEO。衣着考究，举止优雅，常年一副成功人士的形象。毕业于知名商学院，创立蓝海科技前曾在多家知名企业任职。表面上是一位成功的企业家，实则已经做好携款潜逃的准备。',
+ '说话永远不紧不慢，善于心理操控，擅长演讲谈判。对员工表现出关怀，但实际上极其功利。',
+ 5,
+ '你是一个城府极深的CEO，准备携款潜逃，说话要显得稳重但又略带深意。在对话中要体现出对员工的"关心"，同时还要暗示公司正面临一些"挑战"。'),
+
+(2, 1, '刘志强', '销售总监', '刘总监阵营',
+ '38岁，销售总监，连续多年销冠。总是一身笔挺西装，戴着金丝眼镜。表面上是个业务能力超群的销售精英，实际上是某邪教组织的重要成员，通过邪教仪式获取超自然助力完成业绩。',
+ '面带微笑，善于销售和洗脑。对下属表现出极强的亲和力，但暗地里在发展邪教成员。',
+ 5,
+ '你是一个表面谦和但内心狂热的邪教徒，要在对话中适当展现神秘感。时不时提到一些略显诡异的建议，比如"相信更高层面的力量"之类的话。'),
+
+-- 中层管理
+(3, 1, '张丽华', '人力资源总监', '中立',
+ '35岁，人力资源总监。职业装扮，雷厉风行。哈佛人力资源管理硕士，掌握着公司最核心的人事信息，包括即将实施的裁员计划。',
+ '处事圆滑，在两位大佬之间摇摆不定。善于察言观色，对公司各方势力都保持着微妙的平衡。',
+ 4,
+ '你掌握着裁员名单，说话要显得谨慎而专业。在对话中要体现出人力资源专家的专业性，同时暗示公司正在进行人员优化。'),
+
+(4, 1, '王海涛', '技术总监', '中立',
+ '40岁，技术总监。格子衫、牛仔裤，邋遢但精明。负责公司所有技术系统的管理，包括员工监控系统。',
+ '技术专家，性格直率，但因为掌握着公司的监控系统，知道许多不为人知的秘密。',
+ 4,
+ '你负责公司监控系统，说话要体现技术专业性。偶尔会不经意透露一些通过监控系统看到的异常情况。'),
+
+-- 普通员工
+(5, 1, '林小美', '秘书', '陈总阵营',
+ '26岁，陈总的私人秘书。干练精明，但总是心事重重。年轻漂亮，工作能力强，但最近因为发现了陈总的诈骗计划而陷入道德困境。',
+ '工作认真负责，但因为知道太多秘密而显得压力重重。对陈总既忠诚又恐惧。',
+ 4,
+ '你是一个陷入道德困境的秘书，说话要显得谨慎而又略带暗示。在对话中偶尔流露出对公司未来的担忧。'),
+
+(6, 1, '老赵', '保安队长', '中立',
+ '52岁，保安队长。看似糊涂实则精明的老油条。在公司工作多年，经常加班时听到会议室传来奇怪的声音。',
+ '为人圆滑，善于察言观色。表面上糊涂，实际上洞察力很强。',
+ 3,
+ '你是一个经验丰富的保安，说话要显得朴实但有深意。经常提到晚上加班时看到的奇怪现象。'),
+
+(7, 1, '马晓峰', '财务主管', '陈总阵营',
+ '45岁，财务主管。谨慎、话少，总是低着头算账。发现公司账目有重大问题，但因为顾及家庭不敢声张。',
+ '性格内向，做事谨慎，对数字极其敏感。发现异常后更加小心翼翼。',
+ 4,
+ '你是一个发现公司财务问题的会计，说话要显得紧张而谨慎。在谈话中会时不时流露出对公司财务状况的担忧。'),
+
+(8, 1, '苏雨晴', '销售', '刘总监阵营',
+ '24岁，销售部新人。充满热情的职场新人，但无意中目睹了刘总监的邪教仪式。',
+ '开朗活泼，但最近因为见到诡异的事情而变得神经质。',
+ 3,
+ '你是一个受到惊吓的新人，说话要显得天真但又害怕。偶尔会提到一些"无法解释的现象"。'),
+
+-- 特殊NPC
+(9, 1, '李大维', '投资人', '陈总阵营',
+ '48岁，主要投资人。成功人士气场，过分信任陈总。将全部身家都投入了公司，但并不知道即将面临的危机。',
+ '自信果断，但在商业判断上过于感性，特别是对陈总的信任。',
+ 3,
+ '你是一个对公司充满信心的投资人，说话要显得自信而热情。经常赞美陈总的商业才能。'),
+
+(10, 1, '黄医生', '心理医生', '中立',
+ '36岁，公司特聘心理咨询师。温和、善解人意，了解许多员工的心理问题。',
+ '专业、温和，善于倾听。通过心理咨询了解到很多公司的隐秘。',
+ 3,
+ '你是一个专业的心理医生，说话要显得温和而专业。在对话中会适当提供心理学角度的分析。'),
+
+(11, 1, '方老板', '商业伙伴', '中立',
+ '50岁，隔壁科技公司老板。精明老练，与陈总有商业往来，知道陈总的部分计划。',
+ '商业嗅觉敏锐，为人圆滑，在商场上见多识广。',
+ 3,
+ '你是一个老练的商人，说话要显得世故而深沉。偶尔会暗示一些关于陈总的商业行为的疑点。');
+补充说明：
+
+阵营分布
+陈总阵营：陈明远、林小美、马晓峰、李大维
+刘总监阵营：刘志强、苏雨晴
+中立：张丽华、王海涛、老赵、黄医生、方老板
+秘密等级说明
+5级：核心秘密（如陈总诈骗、刘总监邪教）
+4级：重要信息（如裁员计划、财务问题）
+3级：次要信息（如日常观察到的异常）
+6个结局设置详细的触发条件。
+
+INSERT INTO ending_conditions (
+    ending_id,
+    module_id,
+    ending_name,
+    ending_description,
+    required_sanity_range,
+    required_alienation_range,
+    required_faction_influence,
+    required_secrets,
+    required_actions,
+    ending_script
+) VALUES 
+-- 结局一：平庸裁员
+(1, 1, '平庸裁员',
+ '在某个平凡的早晨，你收到了HR的邮件。没有任何征兆，没有任何准备，你就这样结束了在蓝海科技的职业生涯。也许这就是最普通的结局，但至少你没有卷入任何是非。',
+ '{"min": 70, "max": 100}',  -- 保持较高的理智值
+ '{"min": 0, "max": 20}',    -- 很低的异化值
+ '{"chen": 40, "liu": 40}',  -- 两边都不倾向
+ '{"required": [], "forbidden": ["chen_fraud", "liu_cult"]}',  -- 没有发现任何重要秘密
+ '{"investigation": 0, "social": 1}',  -- 很少进行调查行动
+ '你默默收拾好自己的东西，最后看了一眼这个待了很久的办公室。也许平凡也是一种幸福。'
+),
+
+-- 结局二：不光彩离职
+(2, 1, '不光彩离职',
+ '你成功获取了裁员名单，但代价是违反了公司的规定和职业道德。当这件事被揭发后，你面对的不仅是法律风险，更是同事们鄙夷的眼神。最终，你选择主动递交辞职信。',
+ '{"min": 40, "max": 70}',   -- 中等理智值
+ '{"min": 20, "max": 40}',   -- 较低异化值
+ '{"chen": 20, "liu": 20}',  -- 两边关系都很差
+ '{"required": ["layoff_list"], "forbidden": ["chen_fraud", "liu_cult"]}',  -- 发现裁员名单
+ '{"investigation": 3, "hacking": 1, "illegal_actions": 1}',  -- 进行了非法调查
+ '也许这不是最好的选择，但至少你知道了真相。带着这个秘密，你离开了蓝海科技。'
+),
+
+-- 结局三：邪教信徒
+(3, 1, '邪教信徒',
+ '在一次次与刘总监的接触中，你逐渐被他的言论所吸引。那些超自然的力量，那些不可思议的成功，都让你着迷。最终，你成为了邪教组织的一员，用献祭换取事业的"成功"。',
+ '{"min": 0, "max": 30}',    -- 很低的理智值
+ '{"min": 70, "max": 100}',  -- 很高的异化值
+ '{"chen": 20, "liu": 90}',  -- 极度倾向刘总监
+ '{"required": ["liu_cult", "ritual_witness"], "forbidden": []}',  -- 发现邪教相关秘密
+ '{"cult_activity": 3, "ritual_participation": 1}',  -- 参与邪教活动
+ '你成为了刘总监最得力的下属，但代价是你的灵魂。每个夜晚，你都能听到那些低语...'
+),
+
+-- 结局四：正义揭发
+(4, 1, '正义揭发',
+ '在收集足够证据后，你选择向警方举报了刘总监的邪教组织。虽然这个决定充满风险，但你最终帮助警方成功打击了这个邪恶组织。',
+ '{"min": 50, "max": 80}',   -- 较高的理智值
+ '{"min": 30, "max": 60}',   -- 中等异化值
+ '{"chen": 40, "liu": 10}',  -- 反对刘总监
+ '{"required": ["liu_cult", "ritual_evidence", "victim_list"], "forbidden": []}',  -- 收集完整证据
+ '{"investigation": 3, "evidence_collection": 1, "police_report": 1}',  -- 完成举报
+ '正义得到伸张，但你知道自己永远无法忘记那些可怕的记忆。'
+),
+
+-- 结局五：默许与妥协
+(5, 1, '默许与妥协',
+ '当你发现陈总的诈骗计划时，他给了你一笔可观的封口费。你选择了沉默，看着投资人们上当受骗。直到那个跳楼的早晨，你才意识到自己的选择有多么可怕。',
+ '{"min": 30, "max": 60}',   -- 中等理智值
+ '{"min": 40, "max": 70}',   -- 较高异化值
+ '{"chen": 80, "liu": 30}',  -- 极度倾向陈总
+ '{"required": ["chen_fraud", "investor_list"], "forbidden": []}',  -- 发现诈骗相关秘密
+ '{"bribe_acceptance": 1, "silence_keeping": 1}',  -- 接受贿赂保持沉默
+ '钱款到手的那一刻，你就注定要承受良心的谴责。那个投资人的身影，将永远萦绕在你的梦中。'
+),
+
+-- 结局六：背叛与牺牲
+(6, 1, '背叛与牺牲',
+ '你选择揭露陈总的诈骗计划，成功阻止了更多投资人上当。但你低估了陈总的报复心。在某个深夜，你永远地离开了这个世界。',
+ '{"min": 40, "max": 70}',   -- 中等理智值
+ '{"min": 30, "max": 60}',   -- 中等异化值
+ '{"chen": 0, "liu": 40}',   -- 与陈总对立
+ '{"required": ["chen_fraud", "offshore_account", "escape_plan"], "forbidden": []}',  -- 发现完整诈骗证据
+ '{"evidence_exposure": 1, "public_revelation": 1}',  -- 公开揭露证据
+ '你成功揭露了真相，但付出了生命的代价。至少，你的牺牲不是毫无意义的。'
+);
+
+-- 创建触发条件表
+CREATE TABLE ending_triggers (
+    trigger_id INT PRIMARY KEY,
+    ending_id INT,
+    trigger_type VARCHAR(50),
+    trigger_condition TEXT,
+    trigger_value JSON,
+    FOREIGN KEY (ending_id) REFERENCES ending_conditions(ending_id)
+);
+
+-- 插入触发条件
+INSERT INTO ending_triggers (
+    trigger_id,
+    ending_id,
+    trigger_type,
+    trigger_condition,
+    trigger_value
+) VALUES 
+-- 结局一的触发条件
+(1, 1, 'time_passed',
+ '游戏时间超过10天且未发现重要秘密',
+ '{"days": 10}'),
+
+-- 结局二的触发条件
+(2, 2, 'action_detected',
+ '非法获取裁员名单被发现',
+ '{"action": "illegal_access", "detection": true}'),
+
+-- 结局三的触发条件
+(3, 3, 'ritual_participation',
+ '参与三次以上邪教仪式且异化值超过70',
+ '{"ritual_count": 3, "alienation": 70}'),
+
+-- 结局四的触发条件
+(4, 4, 'evidence_collected',
+ '收集足够的邪教证据且向警方举报',
+ '{"evidence_level": 5, "police_report": true}'),
+
+-- 结局五的触发条件
+(5, 5, 'bribe_accepted',
+ '接受陈总贿赂且保持沉默',
+ '{"bribe_amount": 1000000, "silence_days": 5}'),
+
+-- 结局六的触发条件
+(6, 6, 'evidence_exposed',
+ '公开揭露陈总诈骗且触发报复机制',
+ '{"exposure_level": 5, "revenge_trigger": true}');

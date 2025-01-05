@@ -45,21 +45,134 @@
     <!-- 新增模组对话框 -->
     <div v-if="showDialog" class="dialog-overlay">
       <div class="dialog">
-        <h2>新增模组</h2>
-        <form @submit.prevent="addModule">
-          <div class="form-group">
-            <label>标题：</label>
-            <input v-model="newModule.title" required>
+        <h2>新增模组 - 步骤 {{ currentStep }}/{{ totalSteps }}</h2>
+        
+        <!-- 步骤指示器 -->
+        <div class="step-indicator">
+          <div 
+            v-for="step in totalSteps" 
+            :key="step"
+            :class="['step', { active: step === currentStep, completed: step < currentStep }]"
+          >
+            {{ step }}
           </div>
-          <div class="form-group">
-            <label>描述：</label>
-            <textarea v-model="newModule.description" required></textarea>
+        </div>
+
+        <!-- 步骤 1: 基本信息 -->
+        <div v-if="currentStep === 1">
+          <form @submit.prevent="nextStep">
+            <div class="form-group">
+              <label>标题：</label>
+              <input v-model="newModule.title" required>
+            </div>
+            <div class="form-group">
+              <label>描述：</label>
+              <textarea v-model="newModule.description" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>最少玩家数：</label>
+              <input type="number" v-model="newModule.player_min" required min="1">
+            </div>
+            <div class="form-group">
+              <label>最多玩家数：</label>
+              <input type="number" v-model="newModule.player_max" required min="1">
+            </div>
+            <div class="form-group">
+              <label>预计时长（小时）：</label>
+              <input type="number" v-model="newModule.duration_hours" required min="0.5" step="0.5">
+            </div>
+            <div class="form-group">
+              <label>难度：</label>
+              <select v-model="newModule.difficulty" required>
+                <option value="easy">简单</option>
+                <option value="medium">中等</option>
+                <option value="hard">困难</option>
+              </select>
+            </div>
+          </form>
+        </div>
+
+        <!-- 步骤 2: 职业选项 -->
+        <div v-if="currentStep === 2">
+          <div class="professions-list">
+            <div v-for="(profession, index) in newModule.professions" :key="index" class="profession-item">
+              <input v-model="profession.name" placeholder="职业名称">
+              <textarea v-model="profession.description" placeholder="职业描述"></textarea>
+              <button @click="removeProfession(index)" class="remove-btn">删除</button>
+            </div>
+            <button @click="addProfession" class="add-btn">添加职业</button>
           </div>
-          <div class="dialog-buttons">
-            <button type="submit">保存</button>
-            <button type="button" @click="showDialog = false">取消</button>
+        </div>
+
+        <!-- 步骤 3: NPC信息 -->
+        <div v-if="currentStep === 3">
+          <div class="npcs-list">
+            <div v-for="(npc, index) in newModule.npcs" :key="index" class="npc-item">
+              <input v-model="npc.name" placeholder="NPC名称" required>
+              <input v-model="npc.position" placeholder="职位">
+              <input v-model="npc.faction" placeholder="阵营">
+              <textarea v-model="npc.background" placeholder="背景故事"></textarea>
+              <textarea v-model="npc.personality" placeholder="性格特征"></textarea>
+              <input 
+                type="number" 
+                v-model="npc.initial_attitude" 
+                placeholder="初始态度值"
+                min="-100"
+                max="100"
+              >
+              <input 
+                type="number" 
+                v-model="npc.secret_level" 
+                placeholder="秘密等级"
+                min="0"
+                max="10"
+              >
+              <textarea v-model="npc.chat_prompt" placeholder="对话提示"></textarea>
+              <button @click="removeNPC(index)" class="remove-btn">删除</button>
+            </div>
+            <button @click="addNPC" class="add-btn">添加NPC</button>
           </div>
-        </form>
+        </div>
+
+        <!-- 步骤 4: 结局 -->
+        <div v-if="currentStep === 4">
+          <div class="endings-list">
+            <div v-for="(ending, index) in newModule.endings" :key="index" class="ending-item">
+              <input 
+                v-model="ending.ending_name" 
+                placeholder="结局名称"
+                required
+              >
+              <textarea 
+                v-model="ending.ending_description" 
+                placeholder="结局描述"
+                required
+              ></textarea>
+              <button @click="removeEnding(index)" class="remove-btn">删除</button>
+            </div>
+            <button @click="addEnding" class="add-btn">添加结局</button>
+          </div>
+        </div>
+
+        <!-- 导航按钮 -->
+        <div class="dialog-buttons">
+          <button 
+            v-if="currentStep > 1" 
+            @click="currentStep--" 
+            type="button"
+          >上一步</button>
+          <button 
+            v-if="currentStep < totalSteps" 
+            @click="nextStep" 
+            type="button"
+          >下一步</button>
+          <button 
+            v-if="currentStep === totalSteps" 
+            @click="submitModule" 
+            type="submit"
+          >保存</button>
+          <button type="button" @click="closeDialog">取消</button>
+        </div>
       </div>
     </div>
   </div>
@@ -76,6 +189,35 @@ interface Module {
   module_id: number;
   title: string;
   description: string;
+  player_min: number;
+  player_max: number;
+  duration_hours: number;
+  difficulty: string;
+  cover_image_url?: string;
+  professions?: Profession[];
+  npcs?: NPC[];
+  endings?: Ending[];
+}
+
+interface Profession {
+  name: string;
+  description: string;
+}
+
+interface NPC {
+  name: string;
+  position?: string;
+  faction?: string;
+  background?: string;
+  personality?: string;
+  initial_attitude?: number;
+  secret_level?: number;
+  chat_prompt?: string;
+}
+
+interface Ending {
+  ending_name: string;
+  ending_description: string;
 }
 
 const router = useRouter();
@@ -84,9 +226,26 @@ const searchQuery = ref('');
 const loading = ref(true);
 const error = ref<string | null>(null);
 const showDialog = ref(false);
+const currentStep = ref(1);
+const totalSteps = 4;
 const newModule = ref({
+  // 基本信息 - 步骤 1
   title: '',
-  description: ''
+  description: '',
+  player_min: 1,
+  player_max: 4,
+  duration_hours: 2,
+  difficulty: 'medium',
+  cover_image_url: '',
+  
+  // 职业选项 - 步骤 2
+  professions: [] as Profession[],
+  
+  // NPC信息 - 步骤 3
+  npcs: [] as NPC[],
+  
+  // 结局 - 步骤 4
+  endings: [] as Ending[]
 });
 
 const filteredModules = computed(() => {
@@ -99,11 +258,11 @@ const filteredModules = computed(() => {
 const fetchModules = async () => {
   try {
     loading.value = true;
-    error.value = null; // 清除之前的错误
+    error.value = null;
     const response = await api.get('/modules/');
     modules.value = response.data;
-    console.log('Fetched modules:', response.data); // 添加日志
-  } catch (err) {
+    console.log('Fetched modules:', response.data);
+  } catch (err: any) {
     console.error('Error fetching modules:', err);
     error.value = err.response?.data?.detail || '获取模组列表失败';
   } finally {
@@ -117,30 +276,19 @@ const goToModuleDetail = (moduleId: number) => {
 
 const showAddModuleDialog = () => {
   showDialog.value = true;
+  currentStep.value = 1;
   newModule.value = {
     title: '',
-    description: ''
+    description: '',
+    player_min: 1,
+    player_max: 4,
+    duration_hours: 2,
+    difficulty: 'medium',
+    cover_image_url: '',
+    professions: [],
+    npcs: [],
+    endings: []
   };
-};
-
-const addModule = async () => {
-  try {
-    const response = await api.post('/modules/', newModule.value);
-    const newModuleData = {
-      module_id: response.data.module_id,
-      title: response.data.title,
-      description: response.data.description
-    };
-    modules.value.push(newModuleData);
-    showDialog.value = false;
-    newModule.value = {
-      title: '',
-      description: ''
-    };
-  } catch (err) {
-    error.value = '添加模组失败';
-    console.error('Error adding module:', err);
-  }
 };
 
 const deleteModule = async (moduleId: number) => {
@@ -152,6 +300,100 @@ const deleteModule = async (moduleId: number) => {
   } catch (err) {
     error.value = '删除模组失败';
     console.error('Error deleting module:', err);
+  }
+};
+
+const addProfession = () => {
+  newModule.value.professions.push({
+    name: '',
+    description: ''
+  });
+};
+
+const removeProfession = (index: number) => {
+  newModule.value.professions.splice(index, 1);
+};
+
+const addNPC = () => {
+  newModule.value.npcs.push({
+    name: '',
+    position: '',
+    faction: '',
+    background: '',
+    personality: '',
+    initial_attitude: 0,
+    secret_level: 0,
+    chat_prompt: ''
+  });
+};
+
+const removeNPC = (index: number) => {
+  newModule.value.npcs.splice(index, 1);
+};
+
+const addEnding = () => {
+  newModule.value.endings.push({
+    ending_name: '',
+    ending_description: ''
+  });
+};
+
+const removeEnding = (index: number) => {
+  newModule.value.endings.splice(index, 1);
+};
+
+const nextStep = () => {
+  if (currentStep.value < totalSteps) {
+    currentStep.value++;
+  }
+};
+
+const closeDialog = () => {
+  showDialog.value = false;
+  currentStep.value = 1;
+  newModule.value = {
+    title: '',
+    description: '',
+    player_min: 1,
+    player_max: 4,
+    duration_hours: 2,
+    difficulty: 'medium',
+    cover_image_url: '',
+    professions: [],
+    npcs: [],
+    endings: []
+  };
+};
+
+const submitModule = async () => {
+  try {
+    const moduleData = {
+      ...newModule.value,
+      endings: newModule.value.endings.map(ending => ({
+        ending_name: ending.ending_name,
+        ending_description: ending.ending_description
+      }))
+    };
+
+    const response = await api.post('/modules/', moduleData);
+    const newModuleData: Module = {
+      module_id: response.data.module_id,
+      title: response.data.title,
+      description: response.data.description,
+      player_min: response.data.player_min,
+      player_max: response.data.player_max,
+      duration_hours: response.data.duration_hours,
+      difficulty: response.data.difficulty,
+      cover_image_url: response.data.cover_image_url,
+      professions: response.data.professions || [],
+      npcs: response.data.npcs || [],
+      endings: response.data.endings || []
+    };
+    modules.value.push(newModuleData);
+    closeDialog();
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || '添加模组失败';
+    console.error('Error adding module:', err);
   }
 };
 
@@ -325,5 +567,66 @@ h1 {
 
 .retry-button:hover {
   background-color: #45a049;
+}
+
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.step {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.step.active {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.step.completed {
+  background-color: #45a049;
+  color: white;
+}
+
+.profession-item,
+.npc-item,
+.ending-item {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.remove-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 5px;
+}
+
+.add-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.dialog {
+  max-height: 80vh;
+  overflow-y: auto;
 }
 </style> 

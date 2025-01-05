@@ -75,7 +75,26 @@ async def http_exception_handler(request, exc):
         content={"detail": exc.detail}
     ) 
 
-# 添加模组模型
+# 添加新的 Pydantic 模型
+class ProfessionCreate(BaseModel):
+    name: str
+    description: str
+    initial_skills: Optional[str] = None
+
+class CharacterCreate(BaseModel):
+    name: str
+    position: Optional[str] = None
+    faction: Optional[str] = None
+    background: Optional[str] = None
+    personality: Optional[str] = None
+    initial_attitude: Optional[int] = 0
+    secret_level: Optional[int] = 0
+    chat_prompt: Optional[str] = None
+
+class EndingCreate(BaseModel):
+    ending_name: str
+    ending_description: str
+
 class ModuleCreate(BaseModel):
     title: str
     description: str
@@ -83,6 +102,9 @@ class ModuleCreate(BaseModel):
     player_max: int = 5
     duration_hours: int = 8
     difficulty: str = 'medium'
+    professions: List[ProfessionCreate] = []
+    npcs: List[CharacterCreate] = []     # 保持字段名为 npcs 以兼容前端
+    endings: List[EndingCreate] = []
 
 # 模组相关路由
 @app.get("/modules/", response_model=List[dict])
@@ -192,6 +214,7 @@ async def create_module(module: ModuleCreate):
         max_id = cursor.fetchone()[0]
         new_id = max_id + 1
 
+        # 插入模组基本信息
         cursor.execute("""
             INSERT INTO modules (module_id, title, description, player_min, player_max, 
                                duration_hours, difficulty, create_time)
@@ -201,12 +224,87 @@ async def create_module(module: ModuleCreate):
               module.player_max, module.duration_hours, module.difficulty))
         
         new_module = cursor.fetchone()
+        
+        # 处理职业信息
+        cursor.execute("SELECT COALESCE(MAX(profession_id), 0) FROM professions")
+        max_prof_id = cursor.fetchone()[0]
+        professions_data = []
+        for idx, profession in enumerate(module.professions, 1):
+            prof_id = max_prof_id + idx
+            cursor.execute("""
+                INSERT INTO professions (profession_id, module_id, name, description, initial_skills)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING profession_id, name, description
+            """, (prof_id, new_id, profession.name, profession.description, profession.initial_skills))
+            prof_data = cursor.fetchone()
+            professions_data.append({
+                "profession_id": prof_data[0],
+                "name": prof_data[1],
+                "description": prof_data[2],
+                "initial_skills": profession.initial_skills
+            })
+
+        # 处理角色信息（原 NPC）
+        cursor.execute("SELECT COALESCE(MAX(character_id), 0) FROM characters")
+        max_char_id = cursor.fetchone()[0]
+        characters_data = []
+        for idx, npc in enumerate(module.npcs, 1):
+            char_id = max_char_id + idx
+            cursor.execute("""
+                INSERT INTO characters (
+                    character_id, module_id, name, position, faction, 
+                    background, personality, initial_attitude, 
+                    secret_level, chat_prompt
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING character_id, name, position, faction, background, 
+                          personality, initial_attitude, secret_level, chat_prompt
+            """, (
+                char_id, new_id, npc.name, npc.position, npc.faction,
+                npc.background, npc.personality, npc.initial_attitude,
+                npc.secret_level, npc.chat_prompt
+            ))
+            char_data = cursor.fetchone()
+            characters_data.append({
+                "character_id": char_data[0],
+                "name": char_data[1],
+                "position": char_data[2],
+                "faction": char_data[3],
+                "background": char_data[4],
+                "personality": char_data[5],
+                "initial_attitude": char_data[6],
+                "secret_level": char_data[7],
+                "chat_prompt": char_data[8]
+            })
+
+        # 处理结局信息
+        cursor.execute("SELECT COALESCE(MAX(ending_id), 0) FROM ending_conditions")
+        max_ending_id = cursor.fetchone()[0]
+        endings_data = []
+        for idx, ending in enumerate(module.endings, 1):
+            ending_id = max_ending_id + idx
+            cursor.execute("""
+                INSERT INTO ending_conditions (ending_id, module_id, ending_name, ending_description)
+                VALUES (%s, %s, %s, %s)
+                RETURNING ending_id, ending_name, ending_description
+            """, (ending_id, new_id, ending.ending_name, ending.ending_description))
+            ending_data = cursor.fetchone()
+            endings_data.append({
+                "ending_id": ending_data[0],
+                "ending_name": ending_data[1],
+                "ending_description": ending_data[2]
+            })
+        
+        # 提交事务
         conn.commit()
         
         return {
             "module_id": new_module[0],
             "title": new_module[1],
-            "description": new_module[2]
+            "description": new_module[2],
+            "professions": professions_data,
+            "npcs": characters_data,      # 返回时仍使用 npcs 键名以兼容前端
+            "endings": endings_data
         }
     except Exception as e:
         conn.rollback()
