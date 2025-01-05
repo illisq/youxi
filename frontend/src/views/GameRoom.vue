@@ -220,9 +220,11 @@ const sendMessage = async () => {
   await scrollToBottom();
 
   try {
-    const response = await api.post(`/chat/${getSessionId.value}/${encodeURIComponent(selectedNpc.value.name)}`, {
-      message: messageToSend
-    });
+    const characterId = route.params.characterId;
+    const response = await api.post(
+      `/chat/${characterId}/${encodeURIComponent(selectedNpc.value.name)}`,
+      { message: messageToSend }
+    );
 
     if (response.data) {
       const npcResponse = {
@@ -233,10 +235,14 @@ const sendMessage = async () => {
       };
       messages.value.push(npcResponse);
       
+      // 处理状态变化效果
+      if (response.data.effects) {
+        showStatusChanges(response.data.effects);
+        updatePlayerStatus(response.data.effects);
+      }
+      
       allNpcsInteractedToday.value.add(selectedNpc.value.character_id);
-      
       await checkDayCompletion();
-      
       await scrollToBottom();
     }
   } catch (error) {
@@ -278,10 +284,19 @@ const getAvatarUrl = (name: string): string => {
 };
 
 // 组件挂载时获取NPC列表
-onMounted(() => {
-  console.log('GameRoom mounted'); // 调试日志
-  fetchNpcs();
-  fetchPlayerCharacter();
+onMounted(async () => {
+  console.log('GameRoom mounted');
+  await fetchNpcs();
+  await fetchPlayerCharacter();
+  
+  // 获取初始玩家状态，使用角色ID而不是会话ID
+  try {
+    const characterId = route.params.characterId;
+    const response = await api.get(`/player-status/${characterId}`);
+    playerStatus.value = response.data;
+  } catch (error) {
+    console.error('Error fetching initial player status:', error);
+  }
 });
 
 const checkDayCompletion = async () => {

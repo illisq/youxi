@@ -602,6 +602,21 @@ async def create_game_character(character: SimpleCharacterCreate):
         result = cursor.fetchone()
         conn.commit()
         
+        # 初始化玩家状态
+        cursor.execute("""
+            INSERT INTO player_status (
+                session_id,
+                sanity_value,
+                alienation_value,
+                chen_influence,
+                liu_influence,
+                discovered_secrets
+            ) VALUES (%s, 100, 0, 0, 0, ARRAY[]::TEXT[])
+            ON CONFLICT (session_id) DO NOTHING
+        """, (session_id,))
+        
+        conn.commit()
+        
         return {
             "player_character_id": result[0],
             "module_id": character.module_id,
@@ -701,10 +716,10 @@ async def upload_avatar(character_id: int, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
 
-@app.post("/chat/{session_id}/{npc_name}")
-async def chat_with_npc(session_id: int, npc_name: str, message: dict):
+@app.post("/chat/{player_character_id}/{npc_name}")
+async def chat_with_npc(player_character_id: int, npc_name: str, message: dict):
     try:
-        print(f"Starting chat with NPC. Session ID: {session_id}, NPC: {npc_name}, Message: {message}")
+        print(f"Starting chat with NPC. Session ID: {player_character_id}, NPC: {npc_name}, Message: {message}")
         db = SessionLocal()
         
         # 初始化 AIService，使用环境变量中的配置
@@ -780,15 +795,14 @@ async def chat_with_npc(session_id: int, npc_name: str, message: dict):
             
             # 更新玩家状态
             try:
-                # 获取当前状态
                 current_status = db.execute(
                     text("""
                         SELECT sanity_value, alienation_value, 
                                chen_influence, liu_influence, discovered_secrets
                         FROM player_status
-                        WHERE session_id = :session_id
+                        WHERE player_character_id = :player_character_id
                     """),
-                    {"session_id": session_id}
+                    {"player_character_id": player_character_id}
                 ).fetchone()
                 
                 if current_status:
@@ -811,10 +825,10 @@ async def chat_with_npc(session_id: int, npc_name: str, message: dict):
                                 chen_influence = :chen,
                                 liu_influence = :liu,
                                 discovered_secrets = :secrets
-                            WHERE session_id = :session_id
+                            WHERE player_character_id = :player_character_id
                         """),
                         {
-                            "session_id": session_id,
+                            "player_character_id": player_character_id,
                             "sanity": new_sanity,
                             "alienation": new_alienation,
                             "chen": new_chen,
@@ -831,7 +845,7 @@ async def chat_with_npc(session_id: int, npc_name: str, message: dict):
                     print(f"New Secrets: {new_secrets}")
                     print("=====================\n")
                 else:
-                    print(f"Warning: No player status found for session {session_id}")
+                    print(f"Warning: No player status found for session {player_character_id}")
             except Exception as e:
                 print(f"Error updating player status: {e}")
                 # 继续执行，不要因为状态更新失败而中断整个请求
@@ -844,7 +858,7 @@ async def chat_with_npc(session_id: int, npc_name: str, message: dict):
                     VALUES (:session_id, :npc_name, :content, :is_npc)
                 """),
                 {
-                    "session_id": session_id,
+                    "session_id": player_character_id,
                     "npc_name": npc_name,
                     "content": message["message"],
                     "is_npc": False
@@ -858,7 +872,7 @@ async def chat_with_npc(session_id: int, npc_name: str, message: dict):
                     VALUES (:session_id, :npc_name, :content, :is_npc)
                 """),
                 {
-                    "session_id": session_id,
+                    "session_id": player_character_id,
                     "npc_name": npc_name,
                     "content": response_data["response"],
                     "is_npc": True
@@ -988,28 +1002,54 @@ def investigate(
     db.commit()
     return {"message": "Investigation recorded successfully"} 
 
-@app.get("/player-status/{session_id}")
-async def get_player_status(session_id: int, db: Session = Depends(get_db)):
+@app.get("/player-status/{player_character_id}")
+async def get_player_status(player_character_id: int, db: Session = Depends(get_db)):
     try:
+        # 首先尝试获取现有状态
         result = db.execute(
             text("""
                 SELECT sanity_value, alienation_value, 
                        chen_influence, liu_influence, discovered_secrets
                 FROM player_status
-                WHERE session_id = :session_id
+                WHERE player_character_id = :player_character_id
             """),
-            {"session_id": session_id}
+            {"player_character_id": player_character_id}
         ).fetchone()
         
-        if result:
+        if not result:
+            # 如果不存在，创建新的状态记录
+            db.execute(
+                text("""
+                    INSERT INTO player_status (
+                        player_character_id,
+                        sanity_value,
+                        alienation_value,
+                        chen_influence,
+                        liu_influence,
+                        discovered_secrets
+                    ) VALUES (:player_character_id, 100, 0, 0, 0, ARRAY[]::TEXT[])
+                """),
+                {"player_character_id": player_character_id}
+            )
+            db.commit()
+            
+            # 返回初始状态
             return {
-                "sanity": result[0],
-                "alienation": result[1],
-                "chen_influence": result[2],
-                "liu_influence": result[3],
-                "discovered_secrets": result[4] or []
+                "sanity": 100,
+                "alienation": 0,
+                "chen_influence": 0,
+                "liu_influence": 0,
+                "discovered_secrets": []
             }
-        else:
-            raise HTTPException(status_code=404, detail="Player status not found")
+        
+        # 返回现有状态
+        return {
+            "sanity": result[0],
+            "alienation": result[1],
+            "chen_influence": result[2],
+            "liu_influence": result[3],
+            "discovered_secrets": result[4] or []
+        }
     except Exception as e:
+        print(f"Error in get_player_status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
