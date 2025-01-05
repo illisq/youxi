@@ -137,6 +137,37 @@
         </div>
       </div>
     </div>
+
+    <!-- 结局对话框 -->
+    <div v-if="endingDialogVisible" class="ending-dialog">
+      <div class="ending-content">
+        <h2>{{ currentEnding.name }}</h2>
+        <p class="ending-description">{{ currentEnding.description }}</p>
+        
+        <div class="ending-stats">
+          <h3>最终状态:</h3>
+          <div class="stat-item">
+            <span class="stat-label">理智值:</span>
+            <span class="stat-value">{{ Math.round(playerStatus.sanity) }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">异化值:</span>
+            <span class="stat-value">{{ Math.round(playerStatus.alienation) }}</span>
+          </div>
+          <div v-if="playerStatus.discovered_secrets.length > 0" class="secrets-list">
+            <h4>发现的秘密:</h4>
+            <ul>
+              <li v-for="secret in playerStatus.discovered_secrets" :key="secret">
+                {{ getSecretName(secret) }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="confirm-button" @click="handleEndingConfirm">确定</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -189,6 +220,20 @@ interface StatusChanges {
   discovered_secrets?: string[];
 }
 
+interface Ending {
+  name: string;
+  description: string;
+  ending_id: number;
+}
+
+interface PlayerStatus {
+  sanity: number;
+  alienation: number;
+  chen_influence: number;
+  liu_influence: number;
+  discovered_secrets: string[];
+}
+
 const npcs = ref<NPC[]>([]);
 const selectedNpc = ref<NPC | null>(null);
 const messages = ref<Message[]>([]);
@@ -198,13 +243,15 @@ const playerCharacter = ref<PlayerCharacter | null>(null);
 const allNpcsInteractedToday = ref<Set<number>>(new Set());
 const showStatusChange = ref(false);
 const statusChanges = ref<StatusChanges>({});
-const playerStatus = ref({
+const playerStatus = ref<PlayerStatus>({
   sanity: 100,
   alienation: 0,
   chen_influence: 0,
   liu_influence: 0,
   discovered_secrets: []
 });
+const endingDialogVisible = ref(false);
+const currentEnding = ref<Ending | null>(null);
 
 const getSessionId = computed(() => {
   // 临时使用 moduleId 作为 sessionId，实际项目中应该从后端获取真实的 sessionId
@@ -272,14 +319,23 @@ const sendMessage = async () => {
       allNpcsInteractedToday.value.add(selectedNpc.value.character_id);
       await checkDayCompletion();
       await scrollToBottom();
+
+      // 检查结局
+      if (response.data.ending) {
+        // 直接显示结局对话框
+        currentEnding.value = {
+          name: response.data.ending.name,
+          description: response.data.ending.description,
+          ending_id: response.data.ending.ending_id
+        };
+        if (response.data.current_status) {
+          playerStatus.value = response.data.current_status;
+        }
+        endingDialogVisible.value = true;
+      }
     }
   } catch (error) {
-    console.error('Error getting NPC response:', error);
-    messages.value.push({
-      content: '抱歉，暂时无法获取回复，请稍后再试。',
-      type: 'system',
-      time: new Date().toLocaleTimeString()
-    });
+    console.error('Error in sendMessage:', error);
   }
 };
 
@@ -363,73 +419,68 @@ const checkDayCompletion = async () => {
 
 async function checkEnding() {
   try {
-    const response = await api.get(`/api/game/check-ending/${getSessionId.value}`);
-    const endings = response.data.endings;
+    const characterId = route.params.characterId;
+    const response = await api.get(`/api/game/check-ending/${characterId}`);
     
-    if (endings.length > 0) {
+    console.log('Ending check response:', response.data);
+    
+    if (response.data && response.data.has_ending && response.data.endings?.[0]) {
+      // 设置结局数据
+      currentEnding.value = {
+        name: response.data.endings[0].name,
+        description: response.data.endings[0].description,
+        ending_id: response.data.endings[0].ending_id
+      };
+      
+      // 更新玩家状态
+      if (response.data.current_status) {
+        playerStatus.value = response.data.current_status;
+      }
+      
       // 显示结局对话框
-      showEndingDialog(endings[0]);
+      endingDialogVisible.value = true;
     }
   } catch (error) {
     console.error('检查结局失败:', error);
   }
 }
 
-function showEndingDialog(ending) {
-  api.post(`/api/game/end-session/${getSessionId.value}`, {
-    ending_id: ending.ending_id
-  }).then(() => {
-    // 跳转到结算页面
-    router.push(`/game/ending/${getSessionId.value}`);
-  }).catch((error) => {
-    console.error('接受结局失败:', error);
-  });
-}
-
-// 监听对话或行动后的状态变化
-watch(() => playerCharacter.value, {
-  deep: true,
-  handler() {
-    checkEnding();
+const showEndingDialog = async (ending: Ending) => {
+  try {
+    const characterId = route.params.characterId;
+    
+    // 先设置结局数据
+    currentEnding.value = ending;
+    endingDialogVisible.value = true;
+    
+    // 然后通知后端结束会话
+    await api.post(`/api/game/end-session/${characterId}`, {
+      ending_id: ending.ending_id
+    }).catch(error => {
+      console.error('通知后端结束会话失败:', error);
+    });
+  } catch (error) {
+    console.error('显示结局失败:', error);
   }
-});
+};
 
-const showStatusChanges = (changes) => {
+const showStatusChanges = (changes: StatusChanges) => {
   statusChanges.value = changes;
   showStatusChange.value = true;
   setTimeout(async () => {
     showStatusChange.value = false;
-    // 弹窗消失后再次确保状态同步
-    const characterId = route.params.characterId;
-    try {
-      const response = await api.get(`/player-status/${characterId}`);
-      if (response.data) {
-        playerStatus.value = response.data;
-        if (playerCharacter.value) {
-          playerCharacter.value = {
-            ...playerCharacter.value,
-            current_sanity: response.data.sanity,
-            current_alienation: response.data.alienation
-          };
-        }
-      }
-    } catch (error) {
-      console.error('Error refreshing player status:', error);
-    }
+    await updatePlayerCharacterStatus();
   }, 3000);
 };
 
-const updatePlayerStatus = async (effects) => {
+const updatePlayerStatus = async (effects: StatusChanges) => {
   try {
-    // 直接从 player_status 表获取最新状态
     const characterId = route.params.characterId;
     const response = await api.get(`/player-status/${characterId}`);
     
     if (response.data) {
-      // 更新 playerStatus
       playerStatus.value = response.data;
       
-      // 同步更新 playerCharacter
       if (playerCharacter.value) {
         playerCharacter.value = {
           ...playerCharacter.value,
@@ -439,15 +490,14 @@ const updatePlayerStatus = async (effects) => {
       }
     }
 
-    // 显示状态变化
     showStatusChanges(effects);
   } catch (error) {
     console.error('Error updating player status:', error);
   }
 };
 
-const getSecretName = (secretKey) => {
-  const secretNames = {
+const getSecretName = (secretKey: string): string => {
+  const secretNames: Record<string, string> = {
     'chen_fraud': '陈总诈骗',
     'liu_cult': '刘总监邪教',
     'layoff_list': '裁员名单'
@@ -467,20 +517,6 @@ const updatePlayerCharacterStatus = async () => {
   }
 };
 
-const handleDialogClose = async () => {
-  showDialog.value = false;
-  await updatePlayerCharacterStatus();
-};
-
-const handleOptionSelect = async (option: any) => {
-  // 原有的选项处理逻辑
-  // ...
-  
-  // 在处理完选项后更新状态
-  await updatePlayerCharacterStatus();
-};
-
-// 修改获取聊天历史的方法
 const loadChatHistory = async (npcName: string) => {
     try {
         const characterId = route.params.characterId;
@@ -497,6 +533,26 @@ const loadChatHistory = async (npcName: string) => {
     } catch (error) {
         console.error('Error loading chat history:', error);
     }
+};
+
+const handleEndingConfirm = async () => {
+  try {
+    if (currentEnding.value) {
+      const characterId = route.params.characterId;
+      // 通知后端结束会话
+      await api.post(`/api/game/end-session/${characterId}`, {
+        ending_id: currentEnding.value.ending_id
+      });
+    }
+    // 关闭对话框并返回大厅
+    endingDialogVisible.value = false;
+    router.push('/lobby');
+  } catch (error) {
+    console.error('结束会话失败:', error);
+    // 即使失败也返回大厅
+    endingDialogVisible.value = false;
+    router.push('/lobby');
+  }
 };
 </script>
 
@@ -570,6 +626,7 @@ const loadChatHistory = async (npcName: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
 }
 
 .chat-header {
@@ -831,5 +888,64 @@ const loadChatHistory = async (npcName: string) => {
   color: #aaa;
   margin-left: 8px;
   font-size: 0.9em;
+}
+
+.ending-stats {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.ending-stats h3 {
+  margin-bottom: 10px;
+  color: #409EFF;
+}
+
+.ending-stats p {
+  margin: 5px 0;
+  color: #606266;
+}
+
+.ending-dialog {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  width: 80%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.ending-dialog::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: -1;
+}
+
+.confirm-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  min-width: 120px;
+}
+
+.confirm-button:hover {
+  background-color: var(--primary-color-dark);
 }
 </style> 
