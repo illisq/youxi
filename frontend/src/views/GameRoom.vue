@@ -19,7 +19,9 @@
               class="stat-fill" 
               :style="{ width: `${playerCharacter?.current_sanity || 0}%` }"
             ></div>
-            <span class="stat-value">{{ playerCharacter?.current_sanity || 0 }}</span>
+            <div class="stat-value">
+              {{ Math.round(playerCharacter?.current_sanity || 0) }}/100
+            </div>
           </div>
         </div>
         <div class="stat">
@@ -29,7 +31,9 @@
               class="stat-fill red" 
               :style="{ width: `${playerCharacter?.current_alienation || 0}%` }"
             ></div>
-            <span class="stat-value">{{ playerCharacter?.current_alienation || 0 }}</span>
+            <div class="stat-value">
+              {{ Math.round(playerCharacter?.current_alienation || 0) }}/100
+            </div>
           </div>
         </div>
         <div class="player-name">{{ playerCharacter?.name || '未知职业' }}</div>
@@ -95,17 +99,33 @@
     <div v-if="showStatusChange" class="status-change-popup">
       <div class="status-change-content">
         <h3>状态变化</h3>
-        <div v-if="statusChanges.sanity" :class="{'status-decrease': statusChanges.sanity < 0, 'status-increase': statusChanges.sanity > 0}">
-          理智: {{ statusChanges.sanity > 0 ? '+' : ''}}{{ statusChanges.sanity }}
+        <div v-if="statusChanges.sanity !== undefined" 
+             :class="{'status-decrease': statusChanges.sanity < 0, 'status-increase': statusChanges.sanity > 0}">
+          理智值: {{ statusChanges.sanity > 0 ? '+' : ''}}{{ statusChanges.sanity }}
+          <span class="status-change-detail">
+            ({{ statusChanges.oldValues?.sanity }} → {{ statusChanges.newValues?.sanity }})
+          </span>
         </div>
-        <div v-if="statusChanges.alienation" :class="{'status-decrease': statusChanges.alienation > 0, 'status-increase': statusChanges.alienation < 0}">
-          异化: {{ statusChanges.alienation > 0 ? '+' : ''}}{{ statusChanges.alienation }}
+        <div v-if="statusChanges.alienation !== undefined" 
+             :class="{'status-decrease': statusChanges.alienation > 0, 'status-increase': statusChanges.alienation < 0}">
+          异化值: {{ statusChanges.alienation > 0 ? '+' : ''}}{{ statusChanges.alienation }}
+          <span class="status-change-detail">
+            ({{ statusChanges.oldValues?.alienation }} → {{ statusChanges.newValues?.alienation }})
+          </span>
         </div>
-        <div v-if="statusChanges.chen_influence" :class="{'status-decrease': statusChanges.chen_influence < 0, 'status-increase': statusChanges.chen_influence > 0}">
+        <div v-if="statusChanges.chen_influence !== undefined" 
+             :class="{'status-decrease': statusChanges.chen_influence < 0, 'status-increase': statusChanges.chen_influence > 0}">
           陈总影响: {{ statusChanges.chen_influence > 0 ? '+' : ''}}{{ statusChanges.chen_influence }}
+          <span class="status-change-detail">
+            ({{ statusChanges.oldValues?.chen_influence }} → {{ statusChanges.newValues?.chen_influence }})
+          </span>
         </div>
-        <div v-if="statusChanges.liu_influence" :class="{'status-decrease': statusChanges.liu_influence < 0, 'status-increase': statusChanges.liu_influence > 0}">
+        <div v-if="statusChanges.liu_influence !== undefined" 
+             :class="{'status-decrease': statusChanges.liu_influence < 0, 'status-increase': statusChanges.liu_influence > 0}">
           刘总监影响: {{ statusChanges.liu_influence > 0 ? '+' : ''}}{{ statusChanges.liu_influence }}
+          <span class="status-change-detail">
+            ({{ statusChanges.oldValues?.liu_influence }} → {{ statusChanges.newValues?.liu_influence }})
+          </span>
         </div>
         <div v-if="statusChanges.discovered_secrets && statusChanges.discovered_secrets.length > 0">
           <div class="discovered-secrets">
@@ -149,6 +169,26 @@ interface PlayerCharacter {
   day: number;
 }
 
+interface StatusChanges {
+  sanity?: number;
+  alienation?: number;
+  chen_influence?: number;
+  liu_influence?: number;
+  oldValues?: {
+    sanity: number;
+    alienation: number;
+    chen_influence: number;
+    liu_influence: number;
+  };
+  newValues?: {
+    sanity: number;
+    alienation: number;
+    chen_influence: number;
+    liu_influence: number;
+  };
+  discovered_secrets?: string[];
+}
+
 const npcs = ref<NPC[]>([]);
 const selectedNpc = ref<NPC | null>(null);
 const messages = ref<Message[]>([]);
@@ -157,7 +197,7 @@ const messagesContainer = ref<HTMLElement | null>(null);
 const playerCharacter = ref<PlayerCharacter | null>(null);
 const allNpcsInteractedToday = ref<Set<number>>(new Set());
 const showStatusChange = ref(false);
-const statusChanges = ref({});
+const statusChanges = ref<StatusChanges>({});
 const playerStatus = ref({
   sanity: 100,
   alienation: 0,
@@ -239,6 +279,7 @@ const sendMessage = async () => {
       if (response.data.effects) {
         showStatusChanges(response.data.effects);
         updatePlayerStatus(response.data.effects);
+        await updatePlayerCharacterStatus();
       }
       
       allNpcsInteractedToday.value.add(selectedNpc.value.character_id);
@@ -273,6 +314,17 @@ const fetchPlayerCharacter = async () => {
     const characterId = route.params.characterId;
     const response = await api.get(`/player-characters/${characterId}`);
     playerCharacter.value = response.data;
+    
+    // 同步获取最新的玩家状态
+    const statusResponse = await api.get(`/player-status/${characterId}`);
+    if (statusResponse.data) {
+      playerStatus.value = statusResponse.data;
+      // 更新 playerCharacter 的状态值
+      if (playerCharacter.value) {
+        playerCharacter.value.current_sanity = statusResponse.data.sanity;
+        playerCharacter.value.current_alienation = statusResponse.data.alienation;
+      }
+    }
   } catch (error) {
     console.error('Error fetching player character:', error);
   }
@@ -289,11 +341,17 @@ onMounted(async () => {
   await fetchNpcs();
   await fetchPlayerCharacter();
   
-  // 获取初始玩家状态，使用角色ID而不是会话ID
+  // 获取初始玩家状态
   try {
     const characterId = route.params.characterId;
     const response = await api.get(`/player-status/${characterId}`);
     playerStatus.value = response.data;
+    
+    // 同步初始状态到 playerCharacter
+    if (playerCharacter.value) {
+      playerCharacter.value.current_sanity = playerStatus.value.sanity;
+      playerCharacter.value.current_alienation = playerStatus.value.alienation;
+    }
   } catch (error) {
     console.error('Error fetching initial player status:', error);
   }
@@ -349,28 +407,42 @@ watch(() => playerCharacter.value, {
   }
 });
 
-const showStatusChanges = (effects) => {
-  statusChanges.value = effects;
+const showStatusChanges = (changes) => {
+  statusChanges.value = changes;
   showStatusChange.value = true;
-  // 3秒后自动隐藏提示
   setTimeout(() => {
     showStatusChange.value = false;
-  }, 3000);
+  }, 3000); // 增加显示时间到3秒
 };
 
 const updatePlayerStatus = (effects) => {
-  // 更新玩家状态
-  playerStatus.value.sanity = Math.max(0, Math.min(100, playerStatus.value.sanity + effects.sanity));
-  playerStatus.value.alienation = Math.max(0, Math.min(100, playerStatus.value.alienation + effects.alienation));
-  playerStatus.value.chen_influence = Math.max(0, Math.min(100, playerStatus.value.chen_influence + effects.chen_influence));
-  playerStatus.value.liu_influence = Math.max(0, Math.min(100, playerStatus.value.liu_influence + effects.liu_influence));
-  
-  // 更新发现的秘密
-  if (effects.discovered_secrets) {
-    playerStatus.value.discovered_secrets = [
-      ...new Set([...playerStatus.value.discovered_secrets, ...effects.discovered_secrets])
-    ];
+  const oldStatus = {
+    sanity: playerStatus.value.sanity,
+    alienation: playerStatus.value.alienation,
+    chen_influence: playerStatus.value.chen_influence,
+    liu_influence: playerStatus.value.liu_influence
+  };
+
+  // 更新 playerStatus
+  playerStatus.value = {
+    ...playerStatus.value,
+    sanity: effects.newValues?.sanity ?? oldStatus.sanity,
+    alienation: effects.newValues?.alienation ?? oldStatus.alienation,
+    chen_influence: effects.newValues?.chen_influence ?? oldStatus.chen_influence,
+    liu_influence: effects.newValues?.liu_influence ?? oldStatus.liu_influence
+  };
+
+  // 更新 playerCharacter
+  if (playerCharacter.value) {
+    playerCharacter.value = {
+      ...playerCharacter.value,
+      current_sanity: playerStatus.value.sanity,
+      current_alienation: playerStatus.value.alienation
+    };
   }
+
+  // 显示状态变化
+  showStatusChanges(effects);
 };
 
 const getSecretName = (secretKey) => {
@@ -380,6 +452,31 @@ const getSecretName = (secretKey) => {
     'layoff_list': '裁员名单'
   };
   return secretNames[secretKey] || secretKey;
+};
+
+const updatePlayerCharacterStatus = async () => {
+  try {
+    const characterId = route.params.characterId;
+    const response = await api.get(`/player-characters/${characterId}`);
+    if (response.data) {
+      playerCharacter.value = response.data;
+    }
+  } catch (error) {
+    console.error('更新玩家状态失败:', error);
+  }
+};
+
+const handleDialogClose = async () => {
+  showDialog.value = false;
+  await updatePlayerCharacterStatus();
+};
+
+const handleOptionSelect = async (option: any) => {
+  // 原有的选项处理逻辑
+  // ...
+  
+  // 在处理完选项后更新状态
+  await updatePlayerCharacterStatus();
 };
 </script>
 
@@ -538,6 +635,7 @@ const getSecretName = (secretKey) => {
   align-items: center;
   gap: 15px;
   z-index: 1000;
+  min-width: 300px;
 }
 
 .player-avatar img {
@@ -549,7 +647,8 @@ const getSecretName = (secretKey) => {
 }
 
 .player-stats {
-  min-width: 150px;
+  min-width: 200px;
+  flex: 1;
 }
 
 .stat {
@@ -565,12 +664,13 @@ const getSecretName = (secretKey) => {
 }
 
 .stat-bar {
-  width: 100%;
+  width: 180px;
   height: 8px;
   background: #eee;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
+  margin-right: 45px;
 }
 
 .stat-fill {
@@ -585,10 +685,13 @@ const getSecretName = (secretKey) => {
 
 .stat-value {
   position: absolute;
-  right: -25px;
+  right: -45px;
   top: -4px;
   font-size: 0.8em;
   color: #666;
+  white-space: nowrap;
+  width: 40px;
+  text-align: left;
 }
 
 .player-name {
@@ -610,14 +713,17 @@ const getSecretName = (secretKey) => {
 
 .status-change-popup {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.8);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
   color: white;
-  padding: 15px;
+  padding: 20px;
   border-radius: 8px;
   z-index: 1000;
   animation: fadeIn 0.3s ease-in-out;
+  min-width: 300px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .status-change-content {
@@ -630,12 +736,27 @@ const getSecretName = (secretKey) => {
   color: #fff;
 }
 
+.status-change-content > div {
+  margin: 12px 0;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .status-decrease {
-  color: #ff4444;
+  color: #ff6b6b;
 }
 
 .status-increase {
-  color: #44ff44;
+  color: #69db7c;
+}
+
+.status-change-content > div::after {
+  content: attr(data-change);
+  margin-left: 8px;
+  font-size: 0.9em;
+  opacity: 0.8;
 }
 
 .discovered-secrets {
@@ -684,4 +805,10 @@ const getSecretName = (secretKey) => {
 .alienation-bar { background: #ff4444; }
 .chen-bar { background: #4444ff; }
 .liu-bar { background: #ff44ff; }
+
+.status-change-detail {
+  color: #aaa;
+  margin-left: 8px;
+  font-size: 0.9em;
+}
 </style> 
