@@ -1,0 +1,410 @@
+1. 模组基本信息表(Modules)
+
+CREATE TABLE modules (
+    module_id INT PRIMARY KEY,
+    title VARCHAR(100),
+    description TEXT,
+    player_min INT DEFAULT 3,
+    player_max INT DEFAULT 5,
+    duration_hours INT DEFAULT 8,
+    difficulty VARCHAR(20) DEFAULT 'medium',
+    theme VARCHAR(100),
+    create_time TIMESTAMP,
+    cover_image_url VARCHAR(255)
+);
+2. NPC角色表(Characters)
+
+CREATE TABLE characters (
+    character_id INT PRIMARY KEY,
+    module_id INT,
+    name VARCHAR(100),
+    position VARCHAR(50),
+    faction VARCHAR(50), -- 陈总阵营/刘总监阵营
+    avatar_url VARCHAR(255),
+    background TEXT,
+    personality TEXT,
+    initial_attitude INT DEFAULT 50,
+    secret_level INT,
+    chat_prompt TEXT,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id)
+);
+3. 职业模板表(Professions)
+
+CREATE TABLE professions (
+    profession_id INT PRIMARY KEY,
+    module_id INT,
+    name VARCHAR(50),
+    description TEXT,
+    initial_skills JSON, -- {'social': 60, 'computer': 70, ...}
+    special_abilities TEXT,
+    starting_items JSON,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id)
+);
+4. 游戏阶段表(GamePhases)
+
+CREATE TABLE game_phases (
+    phase_id INT PRIMARY KEY,
+    module_id INT,
+    phase_name VARCHAR(100),
+    phase_order INT,
+    description TEXT,
+    required_progress INT,
+    unlock_conditions JSON,
+    available_actions JSON,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id)
+);
+5. 秘密信息表(Secrets)
+
+CREATE TABLE secrets (
+    secret_id INT PRIMARY KEY,
+    module_id INT,
+    related_character_id INT,
+    secret_type VARCHAR(50), -- 邪教/财务/裁员等
+    content TEXT,
+    sanity_loss INT,
+    alienation_increase INT,
+    discovery_difficulty INT,
+    keywords JSON,
+    unlock_conditions JSON,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id),
+    FOREIGN KEY (related_character_id) REFERENCES characters(character_id)
+);
+6. 结局条件表(EndingConditions)
+
+CREATE TABLE ending_conditions (
+    ending_id INT PRIMARY KEY,
+    module_id INT,
+    ending_name VARCHAR(100),
+    ending_description TEXT,
+    required_sanity_range JSON, -- {"min": 0, "max": 100}
+    required_alienation_range JSON,
+    required_faction_influence JSON,
+    required_secrets JSON,
+    required_actions JSON,
+    ending_script TEXT,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id)
+);
+7. 游戏会话表(GameSessions)
+
+CREATE TABLE game_sessions (
+    session_id INT PRIMARY KEY,
+    module_id INT,
+    player_id INT,
+    profession_id INT,
+    current_phase_id INT,
+    sanity_value INT DEFAULT 100,
+    alienation_value INT DEFAULT 0,
+    chen_influence INT DEFAULT 50,
+    liu_influence INT DEFAULT 50,
+    discovered_secrets JSON,
+    completed_actions JSON,
+    session_status VARCHAR(20),
+    start_time TIMESTAMP,
+    last_save_time TIMESTAMP,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id),
+    FOREIGN KEY (profession_id) REFERENCES professions(profession_id),
+    FOREIGN KEY (current_phase_id) REFERENCES game_phases(phase_id)
+);
+8. 游戏动作表(GameActions)
+
+CREATE TABLE game_actions (
+    action_id INT PRIMARY KEY,
+    module_id INT,
+    action_name VARCHAR(100),
+    action_type VARCHAR(50), -- 调查/社交/检定等
+    description TEXT,
+    risk_level INT,
+    detection_chance INT,
+    sanity_effect INT,
+    alienation_effect INT,
+    influence_effects JSON,
+    required_skills JSON,
+    success_outcome TEXT,
+    failure_outcome TEXT,
+    FOREIGN KEY (module_id) REFERENCES modules(module_id)
+);
+9. 监控系统事件表(MonitoringEvents)
+
+CREATE TABLE monitoring_events (
+    event_id INT PRIMARY KEY,
+    session_id INT,
+    action_id INT,
+    detection_roll INT,
+    was_detected BOOLEAN,
+    consequence_type VARCHAR(50),
+    consequence_description TEXT,
+    event_time TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES game_sessions(session_id),
+    FOREIGN KEY (action_id) REFERENCES game_actions(action_id)
+);
+10. 对话历史表(DialogueHistory)
+
+CREATE TABLE dialogue_history (
+    dialogue_id INT PRIMARY KEY,
+    session_id INT,
+    character_id INT,
+    dialogue_content TEXT,
+    player_response TEXT,
+    discovered_secrets JSON,
+    influence_changes JSON,
+    dialogue_time TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES game_sessions(session_id),
+    FOREIGN KEY (character_id) REFERENCES characters(character_id)
+);
+这是我想设计的模组故事背景：一个小公司要裁员了，故事里有会计、程序员、美工、运营、产品等等（常见的互联网公司职位，玩家可以自己选择职业），公司内部有两个派系，一个是陈总（公司创始人之一），一个是刘总监（也是公司的元老，且曾经是连续多年的销冠，再公司就连陈总也要给他面子）。现在主人公作为一个小职员要多和周围人沟通并站队（支持陈总还是刘总监），然后想办法找到裁员名单。然而在找名单的过程中，发现刘总监背后隐藏的秘密，他竟然是邪教成员，他的业绩都与供奉的邪神有关。而陈总背后也隐藏了秘密，他已将妻儿老小都转移到了国外，准备再骗一波投资人的钱就跑路。再加一个设定，公司会时刻监控员工的电脑。设计多种结局：
+结局一，主人公什么都没干，在某天的早晨被裁了
+结局二，经过一番波折发现了裁员名单，但是因为获取的方法不正当被大家唾弃，于是主动离职
+结局三，发现了刘总监的秘密，并被刘总监洗脑加入了邪教
+结局四，发现了刘总监的秘密，但并没有被刘总监洗脑，向警察举报了他
+结局五，发现了陈总的秘密，并被陈总贿赂保守了秘密，看着投资人被陈总骗得上了天台，主人公后悔了
+结局六，发现了陈总的秘密，并将其广而告之，公司随机破产，陈总恨上了主人公，某天一刀干死了主人公
+《蓝海科技》故事简介
+
+宣传语： "在这场职场生存游戏中，每个微笑背后都藏着刀锋，每份文件里都可能埋着地雷。当你终于看清真相，却发现自己早已深陷其中。"
+
+故事简介：
+
+欢迎来到蓝海科技，一家看起来平平无奇的互联网公司。
+
+2023年的寒冬，裁员的阴云笼罩着这座写字楼。作为公司的一名普通职员，你和其他同事一样，每天战战兢兢地打卡上班，生怕自己的名字出现在那份还未出炉的裁员名单上。
+
+公司的两位大佬之间的明争暗斗已经到了白热化阶段。一边是公司创始人陈总，西装革履下藏着不为人知的算计；另一边是销售总监刘志强，那个让所有人都摸不透的神秘销冠。他们都在秘密布局，而你不得不在这场权力游戏中选择站队。
+
+然而，当你试图打探那份裁员名单时，却意外发现了两个惊人的秘密：刘总监那些令人瞠目的业绩数字背后，竟然隐藏着邪教的影子；而陈总看似稳重的外表下，正在酝酿着一个足以让整个公司坍塌的骗局。
+
+在这个看似普通的办公室里，每一封邮件可能暗藏玄机，每一次加班都可能遇到诡异的场景。更糟糕的是，你的一举一动都在公司的监控之下。现在，你必须在保住工作、维护正义和自我保护之间做出选择。
+
+记住，在这里：
+
+同事的笑脸下可能藏着不可告人的秘密
+最普通的会议室可能正在进行着诡异的仪式
+每一个决定都可能让你深陷危险
+真相往往比你想象的更加可怕
+你准备好直面这个表面光鲜的职场，背后却暗藏诡秘的世界了吗？
+
+在这个看似平凡的格子间里，等待着你的，或许是职场升迁，或许是恐怖真相，又或许是无法回头的深渊。
+
+记住，在蓝海科技，不是所有加班的人都在工作，不是所有微笑的人都是你的朋友。
+
+适合玩家类型：
+
+热爱职场剧情的玩家
+喜欢解密探案的玩家
+想体验克苏鲁元素的玩家
+享受多重结局选择的玩家
+让我们一起，揭开这场职场生存游戏背后的真相吧。
+
+管理层：
+
+1. 陈明远（陈总）
+
+职位：公司创始人兼CEO
+年龄：42岁
+特征：衣着考究，举止优雅，说话永远不紧不慢
+秘密：准备携款潜逃，已将家人转移海外
+特殊技能：演讲、谈判、心理操控
+2. 刘志强（刘总监）
+
+职位：销售总监
+年龄：38岁
+特征：总是一身笔挺西装，戴着金丝眼镜，面带微笑
+秘密：邪教成员，用邪术获取业绩
+特殊技能：销售、洗脑、邪教仪式
+中层管理：
+
+3. 张丽华（人事总监）
+
+职位：人力资源总监
+年龄：35岁
+特征：职业装扮，雷厉风行
+秘密：掌握裁员名单，但在两位大佬之间摇摆不定
+特殊技能：人员管理、情报收集
+4. 王海涛（技术总监）
+
+职位：技术部总监
+年龄：40岁
+特征：格子衫、牛仔裤，邋遢但精明
+秘密：负责公司监控系统，掌握大量隐秘信息
+特殊技能：编程、信息获取
+普通员工：
+
+5. 林小美（秘书）
+
+职位：陈总的私人秘书
+年龄：26岁
+特征：干练、精明，但总是一副心事重重的样子
+秘密：发现了陈总的诈骗计划，正在纠结是否举报
+特殊技能：情报收集、文件处理
+6. 老赵（保安）
+
+职位：保安队长
+年龄：52岁
+特征：看似糊涂实则精明的老油条
+秘密：经常加班时听到会议室传来奇怪的声音
+特殊技能：观察、打探消息
+7. 马晓峰（财务）
+
+职位：财务主管
+年龄：45岁
+特征：谨慎、话少，总是低着头算账
+秘密：发现公司账目有重大问题
+特殊技能：会计、数据分析
+8. 苏雨晴（新人）
+
+职位：销售部新人
+年龄：24岁
+特征：充满热情的职场新人
+秘密：无意中目睹了刘总监的邪教仪式
+特殊技能：社交、观察
+特殊NPC：
+
+9. 李大维（投资人）
+
+身份：主要投资人
+年龄：48岁
+特征：成功人士气场，但过分相信陈总
+秘密：全部身家都投入了公司
+特殊技能：投资分析、社交
+10. 黄医生（心理医生）
+
+身份：公司特聘心理咨询师
+年龄：36岁
+特征：温和、善解人意
+秘密：了解许多员工的心理问题
+特殊技能：心理分析、倾听
+11. 方老板（隔壁公司老板）
+
+身份：隔壁科技公司老板
+年龄：50岁
+特征：精明老练，与陈总有商业往来
+秘密：知道陈总的部分计划
+特殊技能：商业嗅觉、人脉网络
+每个NPC都可能：
+
+成为信息来源
+提供任务线索
+触发特殊事件
+影响剧情走向
+NPC互动机制：
+
+每个NPC都有自己的立场和目的
+玩家与NPC互动会影响阵营值
+某些NPC可能成为盟友或敌人
+NPC之间也存在复杂关系网
+建议守密人：
+
+根据剧情需要调整NPC的态度
+通过NPC制造悬念和冲突
+利用NPC引导玩家探索剧情
+适时通过NPC透露关键信息
+《公司秘密》的跑团模组。以下是详细设计：
+
+模组基本信息:
+
+模组类型：半线性
+推荐人数：3-5人
+游戏时长：6-8小时
+难度：中等
+主题：职场阴谋、邪教渗透
+核心机制:
+
+1. 理智值系统
+
+初始理智值：100点
+触发理智下降的情况：
+发现惊悚秘密：-1d6理智值
+目睹恐怖场景：-1d3理智值
+被洗脑/威胁：-1d10理智值
+背叛同事：-5理智值
+2. 阵营影响值
+
+陈总阵营影响值
+刘总监阵营影响值
+初始值：50
+通过行动可增减影响值
+3. 异化值系统 设置异化值追踪机制
+
+初始异化值：0%
+触发异化的行为：
+接触邪教相关信息：+3%
+参与秘密调查：+2%
+被洗脑：+10%
+目睹邪教仪式：+5%
+4. 行动轮 每个游戏轮次包括：
+
+信息收集
+社交互动
+秘密调查
+阵营影响决策
+游戏流程:
+
+第一阶段：公司裁员风声
+
+玩家需要通过社交互动收集信息
+进行初步阵营站队
+开始追踪裁员线索
+第二阶段：秘密调查
+
+通过各种途径收集刘总监和陈总的秘密
+需要进行技能检定
+每次调查都有风险降低理智值
+第三阶段：做出选择
+
+根据收集的信息和阵营影响值
+决定最终立场
+触发不同结局
+结局触发条件:
+
+结局一：平庸裁员
+
+理智值>70
+阵营影响值波动不大
+未进行实质性调查
+结局二：不光彩离职
+
+获得裁员名单
+使用不正当手段
+阵营影响值极低
+结局三：邪教信徒
+
+异化值>50%
+接触邪教仪式
+理智值<30
+结局四：正义揭发
+
+收集足够证据
+理智值>50
+成功向警方举报
+结局五：默许与妥协
+
+被陈总收买
+阵营影响值对陈总>80
+目睹投资人被骗
+结局六：背叛与牺牲
+
+公开陈总秘密
+阵营影响值对陈总<20
+遭到极端报复
+特殊机制:
+
+1. 电脑监控
+
+每次调查有被发现风险
+风险等级：1-100%
+成功率取决于调查方式和技能
+2. 洗脑抵抗
+
+意志力检定
+通过检定可抵抗洗脑
+失败将快速下降理智值
+3. 秘密收集
+
+需要进行社交和调查检定
+收集线索会解锁更多剧情
+技能建议:
+
+社交技能
+调查技能
+心理学
+计算机操作
+隐蔽行动

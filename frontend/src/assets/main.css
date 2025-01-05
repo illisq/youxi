@@ -1,0 +1,15 @@
+:root {
+  --primary-color: #42b983;
+  --text-color: #2c3e50;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  color: var(--text-color);
+} 
