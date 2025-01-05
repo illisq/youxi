@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 load_dotenv()  # 加载 .env 文件中的环境变量
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional
@@ -717,7 +717,13 @@ async def upload_avatar(character_id: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e)) 
 
 @app.post("/chat/{player_character_id}/{npc_name}")
-async def chat_with_npc(player_character_id: int, npc_name: str, message: dict):
+async def chat_with_npc(
+    player_character_id: int, 
+    npc_name: str, 
+    message: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     try:
         print(f"Starting chat with NPC. Session ID: {player_character_id}, NPC: {npc_name}, Message: {message}")
         db = SessionLocal()
@@ -889,12 +895,19 @@ async def chat_with_npc(player_character_id: int, npc_name: str, message: dict):
                 print(f"Error saving chat messages: {e}")
                 raise
             
-            # 将返回值移到这里，确保所有数据库操作都完成
+            # 在对话结束后立即检查当前玩家的结局状态
+            result = await check_ending(player_character_id, db)
+            if result["has_ending"]:
+                print(f"玩家 {player_character_id} 触发了结局检查:")
+                for ending in result["endings"]:
+                    print(f"- {ending['name']}")
+            
             return {
                 "content": response_data["response"],
                 "effects": response_data["effects"],
                 "type": "npc",
-                "time": datetime.now().isoformat()
+                "time": datetime.now().isoformat(),
+                "endings": result["endings"] if result["has_ending"] else []
             }
             
         except Exception as e:
@@ -973,11 +986,119 @@ async def advance_day(session_id: str):
         cursor.close()
         conn.close()
 
-@app.get("/api/game/check-ending/{session_id}")
-def check_ending(session_id: int, db: Session = Depends(get_db)):
-    ending_service = EndingService(db)
-    endings = ending_service.check_ending_conditions(session_id)
-    return {"endings": endings}
+@app.get("/api/game/check-ending/{player_character_id}")
+async def check_ending(player_character_id: int, db: Session = Depends(get_db)):
+    try:
+        print(f"\n=== 开始检查玩家 {player_character_id} 的结局状态 ===")
+        
+        # 获取玩家当前状态
+        result = db.execute(
+            text("""
+                SELECT sanity_value, alienation_value, 
+                       chen_influence, liu_influence, discovered_secrets
+                FROM player_status
+                WHERE player_character_id = :player_character_id
+            """),
+            {"player_character_id": player_character_id}
+        ).fetchone()
+        
+        if not result:
+            print(f"未找到玩家 {player_character_id} 的状态")
+            raise HTTPException(status_code=404, detail="Player status not found")
+            
+        # 获取玩家状态
+        player_status = {
+            "sanity": result[0],
+            "alienation": result[1],
+            "chen_influence": result[2],
+            "liu_influence": result[3],
+            "discovered_secrets": result[4] or []
+        }
+        
+        print("当前玩家状态:")
+        print(f"- 理智值: {player_status['sanity']}")
+        print(f"- 异化值: {player_status['alienation']}")
+        print(f"- 陈总影响力: {player_status['chen_influence']}")
+        print(f"- 刘总监影响力: {player_status['liu_influence']}")
+        print(f"- 已发现的秘密: {player_status['discovered_secrets']}")
+        
+        # 从数据库获取所有可能的结局
+        endings = db.execute(
+            text("""
+                SELECT ending_id, ending_name, ending_description,
+                       required_sanity_range, required_alienation_range,
+                       required_faction_influence, required_secrets
+                FROM ending_conditions
+                WHERE module_id = 1
+            """)
+        ).fetchall()
+        
+        available_endings = []
+        
+        # 检查每个结局的条件
+        for ending in endings:
+            try:
+                # 确保JSON字符串正确解析
+                sanity_range = json.loads(ending[3]) if isinstance(ending[3], str) else ending[3]
+                alienation_range = json.loads(ending[4]) if isinstance(ending[4], str) else ending[4]
+                faction_influence = json.loads(ending[5]) if isinstance(ending[5], str) else ending[5]
+                required_secrets = json.loads(ending[6]) if isinstance(ending[6], str) else ending[6]
+                
+                # print(f"\n检查结局 {ending[1]} 的条件:")
+                # print(f"理智范围: {sanity_range}")
+                # print(f"异化范围: {alienation_range}")
+                # print(f"势力要求: {faction_influence}")
+                # print(f"秘密要求: {required_secrets}")
+                
+                # 检查各项条件是否满足
+                if (sanity_range["min"] <= player_status["sanity"] <= sanity_range["max"] and
+                    alienation_range["min"] <= player_status["alienation"] <= alienation_range["max"] ):
+                    # player_status["chen_influence"] >= faction_influence["chen"] and
+                    # player_status["liu_influence"] >= faction_influence["liu"]):
+                # if True:
+                    # 检查必需的秘密
+                    required_met = all(secret in player_status["discovered_secrets"] 
+                                     for secret in required_secrets["required"])
+                    # 检查禁止的秘密
+                    forbidden_met = all(secret not in player_status["discovered_secrets"] 
+                                      for secret in required_secrets["forbidden"])
+                    
+                    if  True: #required_met and forbidden_met:
+                        available_endings.append({
+                            "ending_id": ending[0],
+                            "name": ending[1],
+                            "description": ending[2]
+                        })
+                        print(f"\n触发结局：{ending[1]}")
+                
+            except json.JSONDecodeError as e:
+                print(f"JSON解析错误 (结局 {ending[1]}): {str(e)}")
+                continue
+            except Exception as e:
+                print(f"检查结局 {ending[1]} 时出错: {str(e)}")
+                continue
+        print(available_endings)
+        if available_endings:
+            print("\n触发的结局:")
+            for ending in available_endings:
+                print(f"- {ending['name']}: {ending['description']}")
+        else:
+            print("\n未触发任何结局")
+        
+        print("=== 结局检查完成 ===\n")
+        
+        return {
+            "has_ending": len(available_endings) > 0,
+            "endings": available_endings,
+            "current_status": player_status
+        }
+        
+    except Exception as e:
+        print(f"结局检查出错: {str(e)}")
+        print(f"错误类型: {type(e)}")
+        import traceback
+        print(f"错误堆栈: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/game/end-session/{session_id}")
 def end_game_session(
