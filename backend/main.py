@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 from pydantic import BaseModel
-from database import get_db_connection
+from sqlalchemy.orm import Session
+from database import get_db_connection, SessionLocal, engine
+import schemas
+import models
 
 app = FastAPI(
     title="TRPG API",

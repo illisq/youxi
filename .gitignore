@@ -28,4 +28,4 @@ var/
 
 # 虚拟环境
 venv/
-ENV/ 
+ENV/
