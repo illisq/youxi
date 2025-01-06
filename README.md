@@ -1,3 +1,6 @@
+技术栈：
+FastAPI + Python + PostgreSQL + OpenAI API + Vue + Node + npm
+
 后端运行：
 ```
 cd backend
