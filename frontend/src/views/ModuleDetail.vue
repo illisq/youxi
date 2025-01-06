@@ -190,7 +190,8 @@ onMounted(() => {
 .description {
   font-size: 1.1em;
   line-height: 1.6;
-  color: #999;  /* 更亮的文字颜色 */
+  color: #999;
+  white-space: pre-line;
 }
 
 .meta {

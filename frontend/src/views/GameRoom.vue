@@ -17,10 +17,10 @@
           <div class="stat-bar">
             <div 
               class="stat-fill" 
-              :style="{ width: `${playerCharacter?.current_sanity || 0}%` }"
+              :style="{ width: `${playerStatus.sanity}%` }"
             ></div>
             <div class="stat-value">
-              {{ Math.round(playerCharacter?.current_sanity || 0) }}/100
+              {{ Math.round(playerStatus.sanity) }}/100
             </div>
           </div>
         </div>
@@ -29,10 +29,10 @@
           <div class="stat-bar">
             <div 
               class="stat-fill red" 
-              :style="{ width: `${playerCharacter?.current_alienation || 0}%` }"
+              :style="{ width: `${playerStatus.alienation}%` }"
             ></div>
             <div class="stat-value">
-              {{ Math.round(playerCharacter?.current_alienation || 0) }}/100
+              {{ Math.round(playerStatus.alienation) }}/100
             </div>
           </div>
         </div>
@@ -302,9 +302,9 @@ const sendMessage = async () => {
       
       // 处理状态变化效果
       if (response.data.effects) {
-        showStatusChanges(response.data.effects);
-        updatePlayerStatus(response.data.effects);
-        await updatePlayerCharacterStatus();
+        // 先更新状态
+        await updatePlayerStatus(response.data.effects);
+        // 不需要重复调用 updatePlayerCharacterStatus，因为已经在 updatePlayerStatus 中更新了
       }
       
       allNpcsInteractedToday.value.add(selectedNpc.value.character_id);
@@ -470,18 +470,18 @@ const updatePlayerStatus = async (effects: StatusChanges) => {
     const response = await api.get(`/player-status/${characterId}`);
     
     if (response.data) {
+      // 更新 playerStatus
       playerStatus.value = response.data;
       
+      // 更新 playerCharacter 的状态
       if (playerCharacter.value) {
-        playerCharacter.value = {
-          ...playerCharacter.value,
-          current_sanity: response.data.sanity,
-          current_alienation: response.data.alienation
-        };
+        playerCharacter.value.current_sanity = response.data.sanity;
+        playerCharacter.value.current_alienation = response.data.alienation;
       }
-    }
 
-    showStatusChanges(effects);
+      // 显示状态变化效果
+      showStatusChanges(effects);
+    }
   } catch (error) {
     console.error('Error updating player status:', error);
   }

@@ -33,7 +33,10 @@
     <div v-else class="modules-grid">
       <div v-for="module in filteredModules" :key="module.module_id" class="module-wrapper">
         <ModuleCard
-          :module="module"
+          :module="{
+            ...module,
+            description: truncateDescription(module.description)
+          }"
           @click="goToModuleDetail(module.module_id)"
         />
         <button 
@@ -445,6 +448,14 @@ const submitModule = async () => {
     error.value = err.response?.data?.detail || '添加模组失败';
     console.error('Error adding module:', err);
   }
+};
+
+// 添加截断描述的函数
+const truncateDescription = (description: string) => {
+  if (description.length > 20) {
+    return description.slice(0, 20) + '...';
+  }
+  return description;
 };
 
 onMounted(() => {
