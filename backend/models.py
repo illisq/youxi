@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Sequence
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import ARRAY
 
 Base = declarative_base()
 
@@ -17,12 +18,21 @@ class User(Base):
 class GameSession(Base):
     __tablename__ = "game_sessions"
     
-    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, Sequence('game_session_id_seq'), primary_key=True)
     module_id = Column(Integer, ForeignKey("modules.module_id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String)
-    current_phase = Column(String)
-    
+    player_id = Column(Integer)
+    profession_id = Column(Integer, ForeignKey("professions.profession_id"))
+    current_phase_id = Column(Integer, ForeignKey("game_phases.phase_id"), nullable=True)
+    sanity_value = Column(Integer, default=100)
+    alienation_value = Column(Integer, default=0)
+    chen_influence = Column(Integer, default=50)
+    liu_influence = Column(Integer, default=50)
+    discovered_secrets = Column(JSON, default=list)
+    completed_actions = Column(JSON, default=list)
+    session_status = Column(String(20))
+    start_time = Column(DateTime, default=datetime.utcnow)
+    last_save_time = Column(DateTime, default=datetime.utcnow)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
     
@@ -78,13 +88,13 @@ class PlayerCharacter(Base):
     player_id = Column(Integer, ForeignKey("users.id"))
     module_id = Column(Integer, ForeignKey("modules.module_id"))
     profession_id = Column(Integer, ForeignKey("professions.profession_id"))
+    session_id = Column(Integer, ForeignKey("game_sessions.session_id"))
     current_sanity = Column(Integer, default=100)
     current_alienation = Column(Integer, default=0)
     inventory = Column(JSON, default={})
     completed_phases = Column(JSON, default={})
     current_status = Column(String, default="active")
     creation_time = Column(DateTime, default=datetime.utcnow)
-    avatar_url = Column(String)
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -99,15 +109,14 @@ class ChatMessage(Base):
 class PlayerStatus(Base):
     __tablename__ = "player_status"
     
-    status_id = Column(Integer, primary_key=True)
+    player_character_id = Column(Integer, ForeignKey("player_characters.player_character_id"), primary_key=True)
     session_id = Column(Integer, ForeignKey("game_sessions.session_id"))
     sanity_value = Column(Integer, default=100)
     alienation_value = Column(Integer, default=0)
-    chen_influence = Column(Integer, default=50)
-    liu_influence = Column(Integer, default=50)
-    discovered_secrets = Column(JSON, default=list)
-    completed_actions = Column(JSON, default=list)
-    last_update = Column(DateTime, default=datetime.utcnow)
+    chen_influence = Column(Integer, default=0)
+    liu_influence = Column(Integer, default=0)
+    discovered_secrets = Column(ARRAY(String), default=[])
+    last_updated = Column(DateTime, default=datetime.utcnow)
 
 class GameEvent(Base):
     __tablename__ = "game_events"
@@ -124,3 +133,15 @@ class EndingCondition(Base):
     ending_id = Column(Integer, primary_key=True)
     module_id = Column(Integer, ForeignKey('modules.module_id', ondelete='CASCADE'))
     # ... 其他字段 ... 
+
+class GamePhase(Base):
+    __tablename__ = "game_phases"
+    
+    phase_id = Column(Integer, primary_key=True)
+    module_id = Column(Integer, ForeignKey("modules.module_id"))
+    phase_name = Column(String(100))
+    phase_order = Column(Integer)
+    description = Column(Text)
+    required_progress = Column(Integer)
+    unlock_conditions = Column(JSON)
+    available_actions = Column(JSON) 

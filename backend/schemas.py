@@ -21,3 +21,7 @@ class EndingSchema(BaseModel):
     ending_id: int
     ending_name: str | None = None
     ending_description: str | None = None 
+
+class SimpleCharacterCreate(BaseModel):
+    module_id: int
+    profession_id: int 

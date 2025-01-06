@@ -8,7 +8,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db_connection, SessionLocal, engine
 import schemas
-import models
+from models import (
+    Module, 
+    Character, 
+    Profession, 
+    EndingCondition, 
+    GameSession,
+    PlayerCharacter,
+    PlayerStatus
+)
 import json
 import os
 import shutil
@@ -16,9 +24,8 @@ from datetime import datetime
 from services.ai_service import AIService
 from services.ending_service import EndingService
 import random
-from schemas import EndingSchema  # 确保这行在其他导入语句中
-from sqlalchemy import text  # 添加这个导入
-from models import Module, Character, Profession, EndingCondition  # 添加 EndingCondition 的导入
+from schemas import EndingSchema
+from sqlalchemy import text
 
 app = FastAPI(
     title="TRPG API",
@@ -601,71 +608,69 @@ async def get_player_characters(player_id: int):
         cursor.close()
         conn.close() 
 
-@app.post("/create-game-character/", response_model=PlayerCharacterResponse)
-async def create_game_character(character: SimpleCharacterCreate):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+@app.post("/create-game-character/")
+async def create_game_character(character_data: SimpleCharacterCreate, db: Session = Depends(get_db)):
     try:
-        cursor.execute("""
-            INSERT INTO player_characters (
-                player_id,
-                module_id,
-                profession_id
-            )
-            VALUES (%s, %s, %s)
-            RETURNING 
-                player_character_id, 
-                creation_time, 
-                current_sanity, 
-                current_alienation, 
-                inventory, 
-                completed_phases, 
-                current_status
-        """, (
-            1,                      # 固定 player_id 为 1
-            character.module_id,
-            character.profession_id
-        ))
+        # 1. 创建新的游戏会话
+        game_session = GameSession(
+            module_id=character_data.module_id,
+            player_id=1,  # 暂时固定为1
+            profession_id=character_data.profession_id,
+            current_phase_id=1,  # 设置初始阶段为1
+            sanity_value=100,
+            alienation_value=0,
+            chen_influence=50,
+            liu_influence=50,
+            discovered_secrets=[],  # SQLAlchemy 会自动处理 JSON 序列化
+            completed_actions=[],   
+            session_status='active',
+            start_time=datetime.utcnow(),
+            last_save_time=datetime.utcnow()
+        )
+        db.add(game_session)
+        db.flush()  # 获取自动生成的session_id
         
-        result = cursor.fetchone()
-        conn.commit()
-        
-        # 初始化玩家状态
-        cursor.execute("""
-            INSERT INTO player_status (
-                session_id,
-                sanity_value,
-                alienation_value,
-                chen_influence,
-                liu_influence,
-                discovered_secrets
-            ) VALUES (%s, 100, 0, 0, 0, ARRAY[]::TEXT[])
-            ON CONFLICT (session_id) DO NOTHING
-        """, (session_id,))
-        
-        conn.commit()
-        
+        # 2. 创建玩家角色
+        player_character = PlayerCharacter(
+            module_id=character_data.module_id,
+            profession_id=character_data.profession_id,
+            player_id=1,  # 暂时固定为1
+            current_sanity=100,
+            current_alienation=0,
+            current_status="active",
+            inventory={},        # SQLAlchemy 会自动处理 JSON 序列化
+            completed_phases={},
+            session_id=game_session.session_id
+        )
+        db.add(player_character)
+        db.flush()  # 获取自动生成的player_character_id
+
+        # 3. 初始化玩家状态
+        player_status = PlayerStatus(
+            player_character_id=player_character.player_character_id,
+            session_id=game_session.session_id,
+            sanity_value=100,
+            alienation_value=0,
+            chen_influence=0,
+            liu_influence=0,
+            discovered_secrets=[],  # PostgreSQL 会自动处理数组类型
+        )
+        db.add(player_status)
+        db.commit()
+
         return {
-            "player_character_id": result[0],
-            "module_id": character.module_id,
-            "profession_id": character.profession_id,
-            "creation_time": result[1].isoformat(),
-            "current_sanity": result[2],
-            "current_alienation": result[3],
-            "inventory": result[4] if result[4] else {},
-            "completed_phases": result[5] if result[5] else {},
-            "current_status": result[6]
+            "player_character_id": player_character.player_character_id,
+            "game_session_id": game_session.session_id,
+            "message": "角色创建成功"
         }
+
     except Exception as e:
-        conn.rollback()
-        print(f"Error creating character: {e}")
+        db.rollback()
+        print(f"Error creating character: {str(e)}")
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to create character: {str(e)}"
+            detail=f"创建角色失败: {str(e)}"
         )
-    finally:
-        cursor.close()
-        conn.close() 
 
 @app.get("/player-characters/{character_id}")
 async def get_player_character(character_id: int):

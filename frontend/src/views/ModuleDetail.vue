@@ -7,8 +7,12 @@
 
     <div class="content">
       <div class="main-info">
-        <img v-if="module.cover_image_url" :src="module.cover_image_url" :alt="module.title" class="cover-image">
-        <div v-else class="placeholder-image">暂无图片</div>
+        <img 
+          :src="coverImage" 
+          :alt="module.title" 
+          class="cover-image"
+          @error="handleImageError"
+        >
         
         <div class="info-box">
           <p class="description">{{ module.description }}</p>
@@ -20,7 +24,7 @@
             </span>
           </div>
           <button class="start-button" @click="showProfessionSelect = true" v-if="!showProfessionSelect">
-            开始游戏
+            开始跑团
           </button>
         </div>
       </div>
@@ -71,17 +75,25 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
+import defaultCover from '../assets/1.png';  // 导入默认封面
 
 const route = useRoute();
 const router = useRouter();
 const module = ref<any>(null);
 const showProfessionSelect = ref(false);
 const selectedProfession = ref<number | null>(null);
+const coverImage = ref(defaultCover);  // 添加封面图片引用
+
+const handleImageError = () => {
+  coverImage.value = defaultCover;
+};
 
 const fetchModuleDetail = async () => {
   try {
     const response = await api.get(`/modules/${route.params.id}`);
     module.value = response.data;
+    // 设置封面图片，如果没有则使用默认图片
+    coverImage.value = module.value.cover_image_url || defaultCover;
   } catch (error) {
     console.error('Error fetching module details:', error);
   }
@@ -128,6 +140,7 @@ onMounted(() => {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
+  color: #e0e0e0;
 }
 
 .header {
@@ -147,10 +160,10 @@ onMounted(() => {
 }
 
 .content {
-  background: white;
+  background: #1a1a1a;  /* 改为暗色背景 */
   border-radius: 8px;
   padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 .main-info {
@@ -160,16 +173,12 @@ onMounted(() => {
   margin-bottom: 32px;
 }
 
-.cover-image, .placeholder-image {
+.cover-image {
   width: 100%;
   height: 400px;
   object-fit: cover;
   border-radius: 8px;
-  background: #f0f0f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #999;
+  background: #121212;  /* 更暗的背景色 */
 }
 
 .info-box {
@@ -181,7 +190,7 @@ onMounted(() => {
 .description {
   font-size: 1.1em;
   line-height: 1.6;
-  color: #666;
+  color: #999;  /* 更亮的文字颜色 */
 }
 
 .meta {
@@ -197,7 +206,7 @@ onMounted(() => {
 
 .section h2 {
   margin-bottom: 16px;
-  color: #333;
+  color: #e0e0e0;  /* 更亮的标题颜色 */
 }
 
 .profession-list {
@@ -207,9 +216,10 @@ onMounted(() => {
 }
 
 .profession-card {
-  background: #f8f8f8;
+  background: #222;  /* 更暗的卡片背景 */
   border-radius: 8px;
   padding: 16px;
+  color: #e0e0e0;
 }
 
 .difficulty {
