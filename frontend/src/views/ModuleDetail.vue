@@ -151,7 +151,7 @@ onMounted(() => {
 
 .back-button {
   padding: 8px 16px;
-  background: var(--primary-color);
+  background: black;
   border: none;
   border-radius: 4px;
   color: white;
@@ -262,7 +262,7 @@ onMounted(() => {
 .start-button {
   margin-top: 20px;
   padding: 12px 24px;
-  background-color: var(--primary-color);
+  background-color: black;
   color: white;
   border: none;
   border-radius: 4px;

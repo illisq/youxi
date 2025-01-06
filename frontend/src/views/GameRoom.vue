@@ -36,7 +36,7 @@
             </div>
           </div>
         </div>
-        <div class="player-name">{{ playerCharacter?.name || '未知职业' }}</div>
+        <div class="player-name">{{ playerCharacter?.name || '未知职业' }}：普雷厄</div>
       </div>
     </div>
 

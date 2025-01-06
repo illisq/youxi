@@ -31,7 +31,7 @@ system_prompt = f"""
         """
 client = OpenAI(
     base_url='https://xiaoai.plus/v1',
-    api_key='sk-t42cuTxpubfUMnw0jeQHud5h0RhBd7QqfpHfimcImI7n2pVr'
+    api_key='sk-2V3iZXbXCbfMFx7Z8DacMsekAREQ1qVDbiu2e1Q0geHFstF6'
 )
 completion = client.chat.completions.create(
   model="gpt-4o",

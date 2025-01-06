@@ -9,7 +9,7 @@
         class="search-input"
       >
       <button class="add-button" @click="showAddModuleDialog">
-        新增模组
+        我要投稿
       </button>
     </div>
 
@@ -49,7 +49,7 @@
     <!-- 新增模组对话框 -->
     <div v-if="showDialog" class="dialog-overlay">
       <div class="dialog">
-        <h2>新增模组 - 步骤 {{ currentStep }}/{{ totalSteps }}</h2>
+        <h2>投稿模组 - 步骤 {{ currentStep }}/{{ totalSteps }}</h2>
         
         <!-- 步骤指示器 -->
         <div class="step-indicator">
