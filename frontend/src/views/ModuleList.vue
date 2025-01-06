@@ -36,7 +36,11 @@
           :module="module"
           @click="goToModuleDetail(module.module_id)"
         />
-        <button class="delete-button" @click.stop="deleteModule(module.module_id)">
+        <button 
+          class="delete-button" 
+          @click.stop="deleteModule(module.module_id)"
+          type="button"
+        >
           删除
         </button>
       </div>
@@ -323,11 +327,29 @@ const deleteModule = async (moduleId: number) => {
   if (!confirm('确定要删除这个模组吗？')) return;
   
   try {
-    await api.delete(`/modules/${moduleId}`);
-    modules.value = modules.value.filter(m => m.module_id !== moduleId);
-  } catch (err) {
-    error.value = '删除模组失败';
+    // 添加错误处理和日志
+    console.log('Attempting to delete module:', moduleId);
+    const response = await api.delete(`/modules/${moduleId}`);
+    console.log('Delete response:', response);
+
+    if (response.status === 200 || response.status === 204) {
+      // 删除成功，更新本地数据
+      modules.value = modules.value.filter(m => m.module_id !== moduleId);
+    } else {
+      throw new Error('删除失败：服务器返回非成功状态码');
+    }
+  } catch (err: any) {
     console.error('Error deleting module:', err);
+    // 提供更详细的错误信息
+    error.value = err.response?.data?.detail || 
+                 err.response?.data?.message || 
+                 err.message || 
+                 '删除模组失败，请稍后重试';
+                 
+    // 显示错误信息3秒后自动清除
+    setTimeout(() => {
+      error.value = null;
+    }, 3000);
   }
 };
 
@@ -435,11 +457,13 @@ onMounted(() => {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
+  background-color: #000000;
+  color: #e0e0e0;
 }
 
 h1 {
   text-align: center;
-  color: #333;
+  color: #e0e0e0;
   margin-bottom: 32px;
 }
 
@@ -454,9 +478,16 @@ h1 {
   width: 100%;
   max-width: 400px;
   padding: 8px 16px;
-  border: 1px solid #ddd;
+  border: 1px solid #2a2a2a;
   border-radius: 4px;
   font-size: 1em;
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4CAF50;
 }
 
 .modules-grid {
@@ -466,7 +497,7 @@ h1 {
 }
 
 .error-message {
-  color: #c5221f;
+  color: #ff6b6b;
   text-align: center;
   padding: 16px;
 }
@@ -474,50 +505,48 @@ h1 {
 .loading {
   text-align: center;
   padding: 32px;
-  color: #666;
+  color: #999;
 }
 
-.add-button {
-  padding: 8px 16px;
-  background-color: #4CAF50;
+/* 修改所有按钮为黑色主题 */
+.add-button,
+.dialog-buttons button[type="submit"],
+.dialog-buttons button[type="button"],
+.retry-button,
+.add-btn,
+.delete-button {
+  background-color: #333;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.add-button:hover {
-  background-color: #45a049;
-}
-
-.module-wrapper {
-  position: relative;
+.add-button:hover,
+.dialog-buttons button[type="submit"]:hover,
+.dialog-buttons button[type="button"]:hover,
+.retry-button:hover,
+.add-btn:hover {
+  background-color: #444;
 }
 
 .delete-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 4px 8px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  z-index: 1;
+  background-color: #333;
 }
 
 .delete-button:hover {
-  background-color: #da190b;
+  background-color: #444;
 }
 
+/* 对话框样式 */
 .dialog-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -525,12 +554,15 @@ h1 {
 }
 
 .dialog {
-  background-color: white;
+  background-color: #121212;
   padding: 30px;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   width: 90%;
   max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: #e0e0e0;
 }
 
 .form-group {
@@ -541,7 +573,7 @@ h1 {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: #333;
+  color: #e0e0e0;
 }
 
 .form-group input,
@@ -549,18 +581,12 @@ h1 {
 .form-group select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
   font-size: 14px;
-  transition: border-color 0.3s;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  border-color: #4CAF50;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  transition: all 0.3s ease;
 }
 
 .dialog-buttons {
@@ -570,54 +596,7 @@ h1 {
   margin-top: 30px;
 }
 
-.dialog-buttons button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.3s;
-}
-
-.dialog-buttons button[type="submit"] {
-  background-color: #4CAF50;
-  color: white;
-}
-
-.dialog-buttons button[type="submit"]:hover {
-  background-color: #45a049;
-}
-
-.dialog-buttons button[type="button"] {
-  background-color: #6c757d;
-  color: white;
-}
-
-.dialog-buttons button[type="button"]:hover {
-  background-color: #5a6268;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 32px;
-  color: #666;
-  font-size: 1.1em;
-}
-
-.retry-button {
-  margin-left: 8px;
-  padding: 4px 8px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.retry-button:hover {
-  background-color: #45a049;
-}
-
+/* 步骤指示器 */
 .step-indicator {
   display: flex;
   justify-content: center;
@@ -628,7 +607,8 @@ h1 {
   width: 35px;
   height: 35px;
   border-radius: 50%;
-  background-color: #e0e0e0;
+  background-color: #1a1a1a;
+  color: #999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -642,7 +622,7 @@ h1 {
   position: absolute;
   width: 30px;
   height: 2px;
-  background-color: #e0e0e0;
+  background-color: #2a2a2a;
   right: -30px;
   top: 50%;
 }
@@ -651,177 +631,49 @@ h1 {
   display: none;
 }
 
-.step.active {
-  background-color: #4CAF50;
-  color: white;
+/* 输入组样式 */
+.input-group {
+  margin-bottom: 15px;
 }
 
-.step.completed {
-  background-color: #45a049;
-  color: white;
+.input-group:last-child {
+  margin-bottom: 0;
 }
 
-.profession-item,
-.npc-item,
-.ending-item {
-  background-color: white;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 25px;
-  margin-bottom: 20px;
+/* 修改模组卡片容器样式 */
+.module-wrapper {
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  transition: transform 0.2s;
 }
 
-.profession-item:hover,
-.npc-item:hover,
-.ending-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.add-btn {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  width: 100%;
-  margin-top: 15px;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.add-btn:hover {
-  background-color: #45a049;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
-}
-
-.remove-btn {
+/* 修改删除按钮样式 */
+.delete-button {
   position: absolute;
-  top: 15px;
-  right: 15px;
-  background-color: #dc3545;
+  top: 10px;
+  right: 10px;
+  padding: 6px 12px;
+  background-color: #333;
   color: white;
   border: none;
-  padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   transition: all 0.3s ease;
+  z-index: 10;  /* 确保按钮在最上层 */
   opacity: 0.8;
 }
 
-.remove-btn:hover {
-  background-color: #c82333;
+.delete-button:hover {
+  background-color: #444;
   opacity: 1;
 }
 
-.npc-item input,
-.npc-item textarea {
-  margin-bottom: 10px;
-}
-
-.ending-item input,
-.ending-item textarea {
-  margin-bottom: 10px;
-}
-
-textarea {
-  min-height: 120px;
-  resize: vertical;
-  line-height: 1.5;
-  font-family: inherit;
-}
-
-.dialog {
-  max-height: 80vh;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #888 #f1f1f1;
-}
-
-.dialog::-webkit-scrollbar {
-  width: 8px;
-}
-
-.dialog::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.dialog::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
-}
-
-.dialog::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* 通用输入框样式 */
-.profession-item input,
-.profession-item textarea,
-.npc-item input,
-.npc-item textarea,
-.ending-item input,
-.ending-item textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 12px;
-  transition: all 0.3s ease;
-  background-color: white;
-}
-
-/* 输入框焦点样式 */
-.profession-item input:focus,
-.profession-item textarea:focus,
-.npc-item input:focus,
-.npc-item textarea:focus,
-.ending-item input:focus,
-.ending-item textarea:focus {
-  border-color: #4CAF50;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
-}
-
-/* 输入框标签样式 */
-.input-label {
-  display: block;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-
-/* 项目卡片样式优化 */
-.profession-item,
-.npc-item,
-.ending-item {
-  background-color: white;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 25px;
-  margin-bottom: 20px;
+/* 确保卡片容器不会遮挡删除按钮 */
+.module-wrapper .module-card {
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.profession-item:hover,
-.npc-item:hover,
-.ending-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1;
 }
 
 /* 文本框样式 */
@@ -836,65 +688,5 @@ textarea {
 input[type="number"] {
   width: 120px;
   text-align: center;
-}
-
-/* 删除按钮位置调整 */
-.remove-btn {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.3s ease;
-  opacity: 0.8;
-}
-
-.remove-btn:hover {
-  background-color: #c82333;
-  opacity: 1;
-}
-
-/* 添加按钮样式优化 */
-.add-btn {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  width: 100%;
-  margin-top: 15px;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.add-btn:hover {
-  background-color: #45a049;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
-}
-
-/* 输入组样式 */
-.input-group {
-  margin-bottom: 15px;
-}
-
-.input-group:last-child {
-  margin-bottom: 0;
-}
-
-/* 添加分隔线 */
-.profession-item + .profession-item,
-.npc-item + .npc-item,
-.ending-item + .ending-item {
-  border-top: 1px solid #f0f0f0;
 }
 </style> 

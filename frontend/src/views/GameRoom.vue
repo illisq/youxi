@@ -144,25 +144,16 @@
         <h2>{{ currentEnding.name }}</h2>
         <p class="ending-description">{{ currentEnding.description }}</p>
         
-        <div class="ending-stats">
-          <h3>最终状态:</h3>
-          <div class="stat-item">
-            <span class="stat-label">理智值:</span>
-            <span class="stat-value">{{ Math.round(playerStatus.sanity) }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">异化值:</span>
-            <span class="stat-value">{{ Math.round(playerStatus.alienation) }}</span>
-          </div>
-          <div v-if="playerStatus.discovered_secrets.length > 0" class="secrets-list">
-            <h4>发现的秘密:</h4>
-            <ul>
-              <li v-for="secret in playerStatus.discovered_secrets" :key="secret">
-                {{ getSecretName(secret) }}
-              </li>
-            </ul>
-          </div>
+        <!-- 保留秘密列表 -->
+        <div v-if="playerStatus.discovered_secrets.length > 0" class="secrets-section">
+          <h4>发现的秘密:</h4>
+          <ul>
+            <li v-for="secret in playerStatus.discovered_secrets" :key="secret">
+              {{ getSecretName(secret) }}
+            </li>
+          </ul>
         </div>
+        
         <div class="dialog-footer">
           <button class="confirm-button" @click="handleEndingConfirm">确定</button>
         </div>
@@ -560,7 +551,13 @@ const handleEndingConfirm = async () => {
 :root {
   --primary-color: #4CAF50;
   --primary-color-dark: #388E3C;
-  --primary-color-light: #C8E6C9;
+  --primary-color-light: #1b4a1d;
+  /* 更新暗色主题的颜色变量为更深的黑色 */
+  --dark-bg: #000000;  /* 改为纯黑色 */
+  --dark-secondary: #121212;  /* 更深的次要背景色 */
+  --dark-border: #2a2a2a;  /* 更深的边框颜色 */
+  --dark-text: #e0e0e0;
+  --dark-text-secondary: #999;
 }
 </style>
 
@@ -569,12 +566,13 @@ const handleEndingConfirm = async () => {
   display: grid;
   grid-template-columns: 300px 1fr;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: var(--dark-bg);
+  color: var(--dark-text);
 }
 
 .npc-list {
-  background: white;
-  border-right: 1px solid #eee;
+  background: var(--dark-secondary);
+  border-right: 1px solid var(--dark-border);
   padding: 20px;
   overflow-y: auto;
 }
@@ -592,10 +590,11 @@ const handleEndingConfirm = async () => {
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.3s;
+  background-color: var(--dark-secondary);
 }
 
 .npc-item:hover {
-  background-color: #f5f5f5;
+  background-color: #1a1a1a;  /* 更深的悬停颜色 */
 }
 
 .npc-item.active {
@@ -631,8 +630,8 @@ const handleEndingConfirm = async () => {
 
 .chat-header {
   padding: 20px;
-  background: white;
-  border-bottom: 1px solid #eee;
+  background: var(--dark-secondary);
+  border-bottom: 1px solid var(--dark-border);
 }
 
 .chat-messages {
@@ -642,6 +641,7 @@ const handleEndingConfirm = async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background-color: var(--dark-bg);
 }
 
 .message {
@@ -659,8 +659,9 @@ const handleEndingConfirm = async () => {
 
 .message.npc {
   align-self: flex-start;
-  background-color: white;
-  border: 1px solid #eee;
+  background-color: #121212;  /* 更深的消息背景 */
+  border: 1px solid #2a2a2a;
+  color: var(--dark-text);
 }
 
 .message-time {
@@ -671,8 +672,8 @@ const handleEndingConfirm = async () => {
 
 .chat-input {
   padding: 20px;
-  background: white;
-  border-top: 1px solid #eee;
+  background: var(--dark-secondary);
+  border-top: 1px solid var(--dark-border);
   display: flex;
   gap: 12px;
 }
@@ -680,34 +681,42 @@ const handleEndingConfirm = async () => {
 .chat-input textarea {
   flex: 1;
   padding: 12px;
-  border: 1px solid #ddd;
+  border: 1px solid #2a2a2a;
   border-radius: 4px;
   resize: none;
   height: 60px;
+  background-color: #121212;  /* 更深的输入框背景 */
+  color: #e0e0e0;
 }
 
 .chat-input button {
   padding: 0 24px;
-  background-color: var(--primary-color);
+  background-color: #333;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-input button:hover {
+  background-color: #444;
 }
 
 .chat-input button:disabled {
-  background-color: #ccc;
+  background-color: #222;
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .player-info {
   position: fixed;
   top: 20px;
   right: 20px;
-  background: white;
+  background: var(--dark-secondary);
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   gap: 15px;
@@ -737,13 +746,13 @@ const handleEndingConfirm = async () => {
 
 .stat-label {
   font-size: 0.9em;
-  color: #666;
+  color: var(--dark-text-secondary);
 }
 
 .stat-bar {
   width: 180px;
   height: 8px;
-  background: #eee;
+  background: var(--dark-bg);
   border-radius: 4px;
   overflow: visible;
   position: relative;
@@ -765,7 +774,7 @@ const handleEndingConfirm = async () => {
   right: -45px;
   top: -4px;
   font-size: 0.8em;
-  color: #666;
+  color: var(--dark-text-secondary);
   white-space: nowrap;
   width: 40px;
   text-align: left;
@@ -773,7 +782,7 @@ const handleEndingConfirm = async () => {
 
 .player-name {
   font-weight: bold;
-  color: #333;
+  color: var(--dark-text);
   margin-top: 8px;
   text-align: center;
 }
@@ -793,7 +802,7 @@ const handleEndingConfirm = async () => {
   top: 20px;
   right: 20px;
   transform: none;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(18, 18, 18, 0.95);  /* 更深的弹窗背景 */
   color: white;
   padding: 15px;
   border-radius: 8px;
@@ -890,30 +899,13 @@ const handleEndingConfirm = async () => {
   font-size: 0.9em;
 }
 
-.ending-stats {
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-}
-
-.ending-stats h3 {
-  margin-bottom: 10px;
-  color: #409EFF;
-}
-
-.ending-stats p {
-  margin: 5px 0;
-  color: #606266;
-}
-
 .ending-dialog {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
-  padding: 20px;
+  background: var(--dark-secondary);
+  padding: 30px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 2000;
@@ -921,31 +913,79 @@ const handleEndingConfirm = async () => {
   max-width: 600px;
   max-height: 80vh;
   overflow-y: auto;
+  color: var(--dark-text);
 }
 
-.ending-dialog::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: -1;
+.ending-content h2 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  color: var(--dark-text);
+}
+
+.ending-description {
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.secrets-section {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: var(--dark-bg);
+  border-radius: 4px;
+}
+
+.secrets-section h4 {
+  margin: 0 0 10px 0;
+  color: var(--dark-text);
+  font-size: 16px;
+}
+
+.secrets-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.secrets-section li {
+  margin: 5px 0;
+  color: var(--dark-text-secondary);
 }
 
 .confirm-button {
   background-color: var(--primary-color);
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
   min-width: 120px;
+  transition: background-color 0.2s;
 }
 
 .confirm-button:hover {
   background-color: var(--primary-color-dark);
+}
+
+.dialog-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* 修改滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
 }
 </style> 

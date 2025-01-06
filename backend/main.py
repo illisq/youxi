@@ -18,6 +18,7 @@ from services.ending_service import EndingService
 import random
 from schemas import EndingSchema  # 确保这行在其他导入语句中
 from sqlalchemy import text  # 添加这个导入
+from models import Module, Character, Profession, EndingCondition  # 添加 EndingCondition 的导入
 
 app = FastAPI(
     title="TRPG API",
@@ -380,21 +381,30 @@ async def create_module(module: ModuleCreate):
         conn.close()
 
 @app.delete("/modules/{module_id}")
-async def delete_module(module_id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+async def delete_module(module_id: int, db: Session = Depends(get_db)):
     try:
-        cursor.execute("DELETE FROM modules WHERE module_id = %s", (module_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Module not found")
-        conn.commit()
-        return {"message": "Module deleted successfully"}
+        # 按顺序删除所有相关数据
+        # 1. 删除结局条件
+        db.query(EndingCondition).filter(EndingCondition.module_id == module_id).delete()
+        
+        # 2. 删除角色
+        db.query(Character).filter(Character.module_id == module_id).delete()
+        
+        # 3. 删除职业
+        db.query(Profession).filter(Profession.module_id == module_id).delete()
+        
+        # 4. 最后删除模组
+        module = db.query(Module).filter(Module.module_id == module_id).first()
+        if not module:
+            raise HTTPException(status_code=404, detail="模组不存在")
+            
+        db.delete(module)
+        db.commit()
+        return {"message": "模组删除成功"}
+        
     except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cursor.close()
-        conn.close()
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除模组失败: {str(e)}")
 
 # 角色相关路由
 @app.get("/characters/", response_model=List[dict])

@@ -11,28 +11,29 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f5f5f5;
+  background: #000000;
+  color: #e0e0e0;
 }
 
 #app {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  color: #e0e0e0;
 }
 
 nav {
   padding: 16px;
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: #121212;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 nav a {
-  color: #2c3e50;
+  color: #e0e0e0;
   text-decoration: none;
   font-weight: bold;
 }
 
 nav a.router-link-active {
-  color: #42b983;
+  color: #f4f4f4;
 }
 </style> 

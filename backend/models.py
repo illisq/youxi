@@ -52,7 +52,7 @@ class Character(Base):
     __tablename__ = "characters"
     
     character_id = Column(Integer, primary_key=True, index=True)
-    module_id = Column(Integer, ForeignKey("modules.module_id"))
+    module_id = Column(Integer, ForeignKey('modules.module_id', ondelete='CASCADE'))
     name = Column(String)
     position = Column(String)
     faction = Column(String)
@@ -66,7 +66,7 @@ class Profession(Base):
     __tablename__ = "professions"
     
     profession_id = Column(Integer, primary_key=True, index=True)
-    module_id = Column(Integer, ForeignKey("modules.module_id"))
+    module_id = Column(Integer, ForeignKey('modules.module_id', ondelete='CASCADE'))
     name = Column(String)
     description = Column(Text)
     initial_skills = Column(JSON)
@@ -117,3 +117,10 @@ class GameEvent(Base):
     event_type = Column(String(50))  # investigation, dialogue, ritual_participation 等
     event_data = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow) 
+
+class EndingCondition(Base):
+    __tablename__ = "ending_conditions"
+    
+    ending_id = Column(Integer, primary_key=True)
+    module_id = Column(Integer, ForeignKey('modules.module_id', ondelete='CASCADE'))
+    # ... 其他字段 ... 
